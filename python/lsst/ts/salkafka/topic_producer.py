@@ -24,19 +24,8 @@ __all__ = ["TopicProducer"]
 import asyncio
 import time
 
-import aiokafka
-import kafkit.registry.serializer
-
 from lsst.ts import salobj
 from .make_avro_schema import make_avro_schema
-
-# translate from wait_for_ack integer values to
-# AIOKafkaProducer ack argument values
-_WAIT_FOR_ACK_DICT = {
-    0: 0,
-    1: 1,
-    2: "all",
-}
 
 
 class TopicProducer:
@@ -46,55 +35,40 @@ class TopicProducer:
     ----------
     topic : `salobj.topics.ReadTopic`
         Topic for which to produce kafka messages.
-    schema_registry : `kafkit.registry.sansio.RegistryApi`
-        A client for the Confluent registry of Avro schemas.
-    broker_url : `str`
-        URL for Kafka broker.
-    wait_for_ack : `int`
-        0: do not wait (unsafe)
-        1: wait for first kafka broker to respond (recommended)
-        2: wait for all kafka brokers to respond
+    kafka_info : `KafkaInfo`
+        Information and clients for using Kafka.
+    log : `logging.Logger`
+        Parent log.
     """
-    def __init__(self, schema_registry, broker_url, wait_for_ack, topic, log):
-        self._schema_registry = schema_registry
+    def __init__(self, topic, kafka_info, log):
         self.topic = topic
+        self.kafka_info = kafka_info
         self.log = log.getChild(topic.sal_name)
-        self._broker_url = broker_url
-        self._wait_for_ack = _WAIT_FOR_ACK_DICT[wait_for_ack]
-        self._avro_schema = make_avro_schema(topic)
         self._producer = None
+        self._avro_schema = make_avro_schema(topic)
         self.start_task = asyncio.ensure_future(self.start())
 
     async def close(self):
+        """Close the Kafka producer.
+        """
         if self._producer is not None:
             self.log.debug("close producer")
             await self._producer.stop()
 
     async def start(self):
-        """Get the schema and connect the callback function.
+        """Start the Kafka producer.
         """
         self.log.debug("starting")
-        serializer = await kafkit.registry.serializer.Serializer.register(
-            registry=self._schema_registry,
-            schema=self._avro_schema,
-            subject=f"{self._avro_schema['name']}-value",
-        )
-        self._producer = aiokafka.AIOKafkaProducer(
-            loop=asyncio.get_running_loop(),
-            bootstrap_servers=self._broker_url,
-            acks=self._wait_for_ack,
-            value_serializer=serializer,
-        )
-        await self._producer.start()
+        self._producer = await self.kafka_info.make_producer(avro_schema=self._avro_schema)
         self.topic.callback = self
         self.log.debug("started")
 
     async def __call__(self, data):
-        """Forward one sample from DDS to Kafka.
+        """Forward one DDS sample (message) to Kafka.
 
         Parameters
         ----------
-        data : ``any``
+        data : ``dds sample``
             DDS sample.
         """
         avro_data = data.get_vars()

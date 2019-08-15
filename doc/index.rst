@@ -6,21 +6,23 @@
 lsst.ts.salkafka
 ################
 
-Forward samples from SAL/DDS to Kafka to populate engineering facilities databases.
+Forward DDS samples from one or more SAL components to a Kafka broker, to populate databases.
 
 .. .. _lsst.ts.salkafka-using:
 
 Using lsst.ts.salkafka
 ======================
 
-Run command-line script ``run_salkafka_producer.py`` to forward DDS samples to Kafka for the specified SAL components.
-Run ``run_salkafka_producer.py --help`` for information about the arguments.
+Run command-line script ``run_salkafka_producer.py`` to forward DDS samples from the specified SAL comonents to Kafka.
+Run with ``--help`` for information about the arguments.
 The script logs to stderr.
+You may run as many instances as you like.
 
 To stop a producer, terminate its process or use ctrl-C.
 
-It is perfectly reasonable to have one producer for many SAL components as long as none of them is very chatty.
-For chatty components such as ``M1M3`` and ``ATMCS`` it is safer to use a single producer.
+Until performance is tested, my best guess is that one producer should forward no more than 1000 messages per second, on average.
+This is based on the fact that ts_salobj can send and receive roughly 5000 topics/second using one process on a modern iMac.
+This suggests that it should be fine to use one producer for many SAL components as long as none of them is very chatty.
 
 Requirements
 ============
@@ -29,6 +31,7 @@ Third party packages (all pip-installable):
 
 * aiohttp
 * aiokafka
+* confluent-kafka
 * kafkit
 
 LSST packages:

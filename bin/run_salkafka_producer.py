@@ -20,13 +20,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import aiohttp
 import argparse
 import asyncio
 import logging
-
-import confluent_kafka.admin
-import kafkit.registry.aiohttp
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
@@ -47,8 +43,9 @@ async def amain():
     parser.add_argument("--replication-factor", type=int, default=3,
                         dest="replication_factor",
                         help="Number of replicas for each Kafka partition.")
-    parser.add_argument("--wait-ack", dest="wait_for_ack", type=int,
-                        default=1,
+    parser.add_argument("--loglevel", type=int, default=logging.INFO,
+                        help="Logging level; INFO=20 (default), DEBUG=10")
+    parser.add_argument("--wait-ack", type=int, default=1, dest="wait_for_ack",
                         help="0: do not wait for ack from any Kafka broker (unsafe). "
                         "1: wait for ack from one Kafka broker (default). "
                         "2: wait for ack from all Kafka brokers.")
@@ -58,28 +55,22 @@ async def amain():
 
     log = logging.getLogger()
     log.addHandler(logging.StreamHandler())
-    log.setLevel(logging.INFO)
+    log.setLevel(args.loglevel)
 
-    connector = aiohttp.TCPConnector(limit_per_host=20)
-    log.info("Create domain and client session")
-    broker_client = confluent_kafka.admin.AdminClient({
-        "bootstrap.servers": args.broker_url
-    })
     async with salobj.Domain() as domain, \
-            aiohttp.ClientSession(connector=connector) as httpsession:
-        schema_registry = kafkit.registry.aiohttp.RegistryApi(session=httpsession, url=args.registry_url)
+            salkafka.KafkaInfo(broker_url=args.broker_url,
+                               registry_url=args.registry_url,
+                               partitions=args.partitions,
+                               replication_factor=args.replication_factor,
+                               wait_for_ack=args.wait_for_ack,
+                               log=log) as kafka_info:
 
         log.info("Create producers")
         producers = []
         for name in args.components:
             producers.append(salkafka.ComponentProducer(domain=domain,
                                                         name=name,
-                                                        schema_registry=schema_registry,
-                                                        broker_client=broker_client,
-                                                        broker_url=args.broker_url,
-                                                        partitions=args.partitions,
-                                                        replication_factor=args.replication_factor,
-                                                        wait_for_ack=args.wait_for_ack,
+                                                        kafka_info=kafka_info,
                                                         log=log))
         log.info("Wait for producers to start")
         await asyncio.gather(*[producer.start_task for producer in producers])

@@ -23,8 +23,6 @@ __all__ = ["ComponentProducer"]
 
 import asyncio
 
-import confluent_kafka.admin
-
 from lsst.ts import salobj
 from .topic_producer import TopicProducer
 
@@ -38,34 +36,16 @@ class ComponentProducer:
         DDS domain participant and quality of service information.
     name : `str`
         Name of SAL component, e.g. "ATDome".
-    schema_registry : `kafkit.registry.sansio.RegistryApi`
-        A client for the Confluent registry of Avro schemas.
-    broker_client : `confluent_kafka.admin.AdminClient`
-        Kafka broker administration client.
-    broker_url : `str`
-        URL for Kafka broker.
-    paritions : `int`
-        Number of partitions for each Kafka topic.
-    replication_factor : `int`
-        Number of replicas for each Kafka partition.
-    wait_for_ack : `int`
-        0: do not wait (unsafe)
-        1: wait for first kafka broker to respond (recommended)
-        2: wait for all kafka brokers to respond
+    kafka_info : `KafkaInfo`
+        Information and clients for using Kafka.
     log : `logging.Logger`
         Parent log.
     """
-    def __init__(self, domain, name, schema_registry, broker_client,
-                 broker_url, partitions, replication_factor, wait_for_ack, log):
+    def __init__(self, domain, name, kafka_info, log):
         self.domain = domain
         # index=0 means we get samples from all SAL indices of the component
         self.salinfo = salobj.SalInfo(domain=self.domain, name=name, index=0)
-        self._broker_client = broker_client
-        self._schema_registry = schema_registry
-        self._broker_url = broker_url
-        self._partitions = partitions
-        self._replication_factor = replication_factor
-        self._wait_for_ack = wait_for_ack
+        self.kafka_info = kafka_info
         self.log = log.getChild(name)
         self.producers = set()
 
@@ -77,10 +57,10 @@ class ComponentProducer:
         kafka_topic_names = [f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
                              for name, prefix in topic_name_prefixes]
 
-        self.log.info(f"Create Kafka topics for {self.salinfo} if not already present.")
-        self.create_kafka_topics(kafka_topic_names)
+        self.log.info(f"Create Kafka topics for {self.salinfo.name} if not already present.")
+        self.kafka_info.make_kafka_topics(kafka_topic_names)
 
-        self.log.info(f"Create SAL/Kafka topic producers for {self.salinfo}.")
+        self.log.info(f"Create SAL/Kafka topic producers for {self.salinfo.name}.")
         try:
             for topic_name, sal_prefix in topic_name_prefixes:
                 self._make_topic(name=topic_name, sal_prefix=sal_prefix)
@@ -88,27 +68,6 @@ class ComponentProducer:
         except Exception:
             asyncio.ensure_future(self.salinfo.close())
             raise
-
-    def create_kafka_topics(self, topic_names):
-        """Create Kafka topics that do not already exist.
-        """
-        metadata = self._broker_client.list_topics(timeout=10)
-        existing_topic_names = set(metadata.topics.keys())
-        new_topic_names = set(topic_names) - existing_topic_names
-        if len(new_topic_names) == 0:
-            return
-        new_topic_metadata = [confluent_kafka.admin.NewTopic(topic_name,
-                                                             num_partitions=self._partitions,
-                                                             replication_factor=self._replication_factor)
-                              for topic_name in sorted(new_topic_names)]
-        fs = self._broker_client.create_topics(new_topic_metadata)
-        for topic_name, future in fs.items():
-            try:
-                future.result()  # The result itself is None
-                self.log.info(f"Created {self.salinfo} topic {topic_name}")
-            except Exception:
-                self.log.exception(f"Failed to create {self.salinfo} topic {topic_name}")
-                raise
 
     def _make_topic(self, name, sal_prefix):
         r"""Make a salobj read topic and associated topic producer.
@@ -125,14 +84,12 @@ class ComponentProducer:
                                         sal_prefix=sal_prefix,
                                         max_history=0)
         producer = TopicProducer(topic=topic,
-                                 schema_registry=self._schema_registry,
-                                 broker_url=self._broker_url,
-                                 wait_for_ack=self._wait_for_ack,
+                                 kafka_info=self.kafka_info,
                                  log=self.log)
         self.producers.add(producer)
 
     async def start(self):
-        """Start the SalInfo and producers.
+        """Start the contained `lsst.ts.salobj.SalInfo` and Kafka producers.
         """
         self.log.debug("starting")
         await self.salinfo.start()
@@ -142,8 +99,8 @@ class ComponentProducer:
     async def close(self):
         """Shut down and clean up resources.
 
-        Close the contained `SalInfo`, but not the `Domain`,
-        because that may be used by other objects.
+        Close the contained `lsst.ts.salobj.SalInfo`, but not the ``domain``,
+        because that is almost certainly used by other objects.
         """
         self.log.debug("close")
         await self.salinfo.close()

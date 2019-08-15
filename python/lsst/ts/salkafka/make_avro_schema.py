@@ -36,7 +36,7 @@ def make_avro_schema(topic):
 
     Parameters
     ----------
-    topic : 'lsst.ts.salobj.topics.BaseTopic`
+    topic : `lsst.ts.salobj.topics.BaseTopic`
         Topic for which to get the schema.
 
     Returns

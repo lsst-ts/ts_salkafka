@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from . import mocks
+from .kafka_info import *
 from .make_avro_schema import *
 from .topic_producer import *
 from .component_producer import *

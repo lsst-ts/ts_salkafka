@@ -43,6 +43,10 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
             index = next(index_gen)
             async with salobj.Domain() as domain:
                 salinfo = salobj.SalInfo(domain=domain, name="Test", index=index)
+                topic0 = salobj.topics.ControllerEvent(salinfo=salinfo, name="summaryState")
+                schema0 = salkafka.make_avro_schema(topic=topic0)
+                print(f"schema0={schema0}")
+
                 topic = salobj.topics.ControllerEvent(salinfo=salinfo, name="arrays")
                 schema = salkafka.make_avro_schema(topic=topic)
                 self.assertEqual(len(schema), 3)

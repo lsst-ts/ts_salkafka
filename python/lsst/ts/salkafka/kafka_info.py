@@ -1,0 +1,161 @@
+# This file is part of ts_salkafka.
+#
+# Developed for the LSST Telescope and Site Systems.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+__all__ = ["KafkaInfo"]
+
+import asyncio
+
+import aiohttp
+# use `from x import y` to support replacing these classes with mocks
+from aiokafka import AIOKafkaProducer
+from confluent_kafka.admin import AdminClient, NewTopic
+from kafkit.registry.aiohttp import RegistryApi
+from kafkit.registry import Serializer
+
+
+# translate from wait_for_ack integer values to
+# AIOKafkaProducer ack argument values
+_WAIT_FOR_ACK_DICT = {
+    0: 0,
+    1: 1,
+    2: "all",
+}
+
+
+class KafkaInfo:
+    """Information and clients for using Kafka.
+
+    Parameters
+    ----------
+    broker_url : `str`
+        Kafka broker URL, without the transport.
+        For example: ``my.kafka:9000``
+    registry_url : `str`
+        Schema Registry URL, including the transport.
+        For example: ``https://registry.my.kafka/``
+    partitions : `int`
+        Number of partitions for each Kafka topic.
+    replication_factor : `int`
+        Number of replicas for each Kafka partition.
+    wait_for_ack : `int`
+        0: do not wait (unsafe)
+        1: wait for first kafka broker to respond (recommended)
+        2: wait for all kafka brokers to respond
+    log : `logging.Logger`
+        Logger.
+    """
+    def __init__(self, broker_url, registry_url, partitions,
+                 replication_factor, wait_for_ack, log):
+        self.broker_url = broker_url
+        self.registry_url = registry_url
+        self.partitions = partitions
+        self.replication_factor = replication_factor
+        self.wait_for_ack = _WAIT_FOR_ACK_DICT[wait_for_ack]
+        self.log = log
+
+        self.httpsession = None  # created by `start`
+        self.schema_registry = None
+        self.log.info("Make Kafka client session")
+        self.broker_client = AdminClient({
+            "bootstrap.servers": self.broker_url
+        })
+        self.start_task = asyncio.ensure_future(self.start())
+
+    async def start(self):
+        """Start the Kafka clients.
+        """
+        self.log.info("Make avro schema registry.")
+        connector = aiohttp.TCPConnector(limit_per_host=20)
+        self.httpsession = aiohttp.ClientSession(connector=connector)
+        self.schema_registry = RegistryApi(session=self.httpsession,
+                                           url=self.registry_url)
+
+    async def close(self):
+        """Close the Kafka clients.
+        """
+        if self.httpsession is not None:
+            await self.httpsession.close()
+
+    def make_kafka_topics(self, topic_names):
+        """Initialize Kafka topics that do not already exist.
+
+        Parameters
+        ----------
+        topic_names : `list'[ `str` ]
+            List of Kafka topic names.
+
+        Returns
+        -------
+        new_topic_names : `list` [`str`]
+            List of newly created Kafka topic names.
+        """
+        metadata = self.broker_client.list_topics(timeout=10)
+        existing_topic_names = set(metadata.topics.keys())
+        new_topic_names = sorted(set(topic_names) - existing_topic_names)
+        if len(new_topic_names) == 0:
+            return []
+        new_topic_metadata = [NewTopic(topic_name,
+                                       num_partitions=self.partitions,
+                                       replication_factor=self.replication_factor)
+                              for topic_name in new_topic_names]
+        fs = self.broker_client.create_topics(new_topic_metadata)
+        for topic_name, future in fs.items():
+            try:
+                future.result()  # The result itself is None
+                self.log.debug(f"Created topic {topic_name}")
+            except Exception:
+                self.log.exception(f"Failed to create topic {topic_name}")
+                raise
+        return new_topic_names
+
+    async def make_producer(self, avro_schema):
+        """Make and start a Kafka producer for a topic.
+
+        Parameters
+        ----------
+        avro_schema : `dict`
+            Avro schema for the topic.
+
+        Returns
+        -------
+        producer : `aiokafka.AIOKafkaProducer`
+            Kafka message producer.
+        """
+        serializer = await Serializer.register(
+            registry=self.schema_registry,
+            schema=avro_schema,
+            subject=f"{avro_schema['name']}-value",
+        )
+        producer = AIOKafkaProducer(
+            loop=asyncio.get_running_loop(),
+            bootstrap_servers=self.broker_url,
+            acks=self.wait_for_ack,
+            value_serializer=serializer,
+        )
+        await producer.start()
+        return producer
+
+    async def __aenter__(self):
+        await self.start_task
+        return self
+
+    async def __aexit__(self, type, value, traceback):
+        await self.close()
