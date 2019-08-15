@@ -25,7 +25,8 @@ import argparse
 import asyncio
 import logging
 
-from kafkit.registry.aiohttp import RegistryApi
+import confluent_kafka.admin
+import kafkit.registry.aiohttp
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
@@ -41,11 +42,16 @@ async def amain():
     parser.add_argument("--registry", dest="registry_url",
                         help="Schema Registry URL, including the transport. "
                         "Required! Example: 'https://registry.my.kafka/'")
+    parser.add_argument("--partitions", type=int, default=1,
+                        help="Number of partitions for each Kafka topic.")
+    parser.add_argument("--replication-factor", type=int, default=3,
+                        dest="replication_factor",
+                        help="Number of replicas for each Kafka partition.")
     parser.add_argument("--wait-ack", dest="wait_for_ack", type=int,
                         default=1,
-                        help="0: do not wait for ack from any kafka broker (unsafe). "
-                        "1: wait for ack from one kafka broker (default). "
-                        "2: wait for ack from all kafka brokers.")
+                        help="0: do not wait for ack from any Kafka broker (unsafe). "
+                        "1: wait for ack from one Kafka broker (default). "
+                        "2: wait for ack from all Kafka brokers.")
     args = parser.parse_args()
     if args.broker_url is None or args.registry_url is None:
         parser.error("--broker and --registry are both required")
@@ -56,9 +62,12 @@ async def amain():
 
     connector = aiohttp.TCPConnector(limit_per_host=20)
     log.info("Create domain and client session")
+    broker_client = confluent_kafka.admin.AdminClient({
+        "bootstrap.servers": args.broker_url
+    })
     async with salobj.Domain() as domain, \
             aiohttp.ClientSession(connector=connector) as httpsession:
-        schema_registry = RegistryApi(session=httpsession, url=args.registry_url)
+        schema_registry = kafkit.registry.aiohttp.RegistryApi(session=httpsession, url=args.registry_url)
 
         log.info("Create producers")
         producers = []
@@ -66,7 +75,10 @@ async def amain():
             producers.append(salkafka.ComponentProducer(domain=domain,
                                                         name=name,
                                                         schema_registry=schema_registry,
+                                                        broker_client=broker_client,
                                                         broker_url=args.broker_url,
+                                                        partitions=args.partitions,
+                                                        replication_factor=args.replication_factor,
                                                         wait_for_ack=args.wait_for_ack,
                                                         log=log))
         log.info("Wait for producers to start")

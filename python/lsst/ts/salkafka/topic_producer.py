@@ -25,7 +25,7 @@ import asyncio
 import time
 
 import aiokafka
-from kafkit.registry.serializer import Serializer
+import kafkit.registry.serializer
 
 from lsst.ts import salobj
 from .make_avro_schema import make_avro_schema
@@ -74,7 +74,7 @@ class TopicProducer:
         """Get the schema and connect the callback function.
         """
         self.log.debug("starting")
-        serializer = await Serializer.register(
+        serializer = await kafkit.registry.serializer.Serializer.register(
             registry=self._schema_registry,
             schema=self._avro_schema,
             subject=f"{self._avro_schema['name']}-value",
