@@ -44,22 +44,22 @@ class TopicProducer:
         self.topic = topic
         self.kafka_info = kafka_info
         self.log = log.getChild(topic.sal_name)
-        self._producer = None
-        self._avro_schema = make_avro_schema(topic)
+        self.kafka_producer = None
+        self.avro_schema = make_avro_schema(topic)
         self.start_task = asyncio.ensure_future(self.start())
 
     async def close(self):
         """Close the Kafka producer.
         """
-        if self._producer is not None:
+        if self.kafka_producer is not None:
             self.log.debug("close producer")
-            await self._producer.stop()
+            await self.kafka_producer.stop()
 
     async def start(self):
         """Start the Kafka producer.
         """
         self.log.debug("starting")
-        self._producer = await self.kafka_info.make_producer(avro_schema=self._avro_schema)
+        self.kafka_producer = await self.kafka_info.make_producer(avro_schema=self.avro_schema)
         self.topic.callback = self
         self.log.debug("started")
 
@@ -73,4 +73,4 @@ class TopicProducer:
         """
         avro_data = data.get_vars()
         avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
-        await self._producer.send_and_wait(self._avro_schema["name"], value=avro_data)
+        await self.kafka_producer.send_and_wait(self.avro_schema["name"], value=avro_data)

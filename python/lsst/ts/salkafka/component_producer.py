@@ -45,7 +45,9 @@ class ComponentProducer:
         self.salinfo = salobj.SalInfo(domain=self.domain, name=name, index=0)
         self.kafka_info = kafka_info
         self.log = kafka_info.log.getChild(name)
-        self.producers = set()
+        self.topic_producers = dict()
+        """Dict of topic attr_name: TopicProducer.
+        """
 
         # create a list of topic names and sal prefixes
         topic_name_prefixes = [("ackcmd", "")]
@@ -84,14 +86,14 @@ class ComponentProducer:
         producer = TopicProducer(topic=topic,
                                  kafka_info=self.kafka_info,
                                  log=self.log)
-        self.producers.add(producer)
+        self.topic_producers[topic.attr_name] = producer
 
     async def start(self):
         """Start the contained `lsst.ts.salobj.SalInfo` and Kafka producers.
         """
         self.log.debug("starting")
         await self.salinfo.start()
-        await asyncio.gather(*[producer.start_task for producer in self.producers])
+        await asyncio.gather(*[producer.start_task for producer in self.topic_producers.values()])
         self.log.debug("started")
 
     async def close(self):
@@ -102,7 +104,7 @@ class ComponentProducer:
         """
         self.log.debug("close")
         await self.salinfo.close()
-        await asyncio.gather(*[producer.close() for producer in self.producers])
+        await asyncio.gather(*[producer.close() for producer in self.topic_producers.values()])
 
     async def __aenter__(self):
         await self.start_task
