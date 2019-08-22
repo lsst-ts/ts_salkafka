@@ -38,15 +38,13 @@ class ComponentProducer:
         Name of SAL component, e.g. "ATDome".
     kafka_info : `KafkaInfo`
         Information and clients for using Kafka.
-    log : `logging.Logger`
-        Parent log.
     """
-    def __init__(self, domain, name, kafka_info, log):
+    def __init__(self, domain, name, kafka_info):
         self.domain = domain
         # index=0 means we get samples from all SAL indices of the component
         self.salinfo = salobj.SalInfo(domain=self.domain, name=name, index=0)
         self.kafka_info = kafka_info
-        self.log = log.getChild(name)
+        self.log = kafka_info.log.getChild(name)
         self.producers = set()
 
         # create a list of topic names and sal prefixes

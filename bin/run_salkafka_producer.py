@@ -70,8 +70,7 @@ async def amain():
         for name in args.components:
             producers.append(salkafka.ComponentProducer(domain=domain,
                                                         name=name,
-                                                        kafka_info=kafka_info,
-                                                        log=log))
+                                                        kafka_info=kafka_info))
         log.info("Wait for producers to start")
         await asyncio.gather(*[producer.start_task for producer in producers])
         log.info("Running")
