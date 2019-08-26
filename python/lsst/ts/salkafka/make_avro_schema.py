@@ -64,7 +64,7 @@ def make_avro_schema(topic):
     data = topic.DataType()
     data_dict = data.get_vars()
 
-    fields = []
+    fields = [{"name": "private_kafkaStamp", "type": "double"}]
     for field_name, field_data in data_dict.items():
         field_type = type(field_data)
         if isinstance(field_data, list):

@@ -53,6 +53,8 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                 self.assertEqual(schema["type"], "record")
                 self.assertEqual(schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}")
                 desired_field_name_type = {
+                    # added by make_avro_schema
+                    "private_kafkaStamp": "double",
                     # standard fields not in the XML
                     "TestID": "long",
                     "private_revCode": "string",
@@ -112,6 +114,8 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                 self.assertEqual(schema["type"], "record")
                 self.assertEqual(schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}")
                 desired_field_name_type = {
+                    # added by make_avro_schema
+                    "private_kafkaStamp": "double",
                     # standard fields not in the XML
                     "TestID": "long",
                     "private_revCode": "string",
