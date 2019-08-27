@@ -44,11 +44,12 @@ class MockKafkitRegistryApi:
 class MockAIOKafkaProducer:
     """Mock `aiokafka.AIOKafkaProducer`.
     """
-    def __init__(self, loop, bootstrap_servers, acks, value_serializer):
+    def __init__(self, *, loop, bootstrap_servers, acks, value_serializer, **kwargs):
         self.loop = loop
         self.bootstrap_servers = bootstrap_servers
         self.acks = acks
         self.value_serializer = value_serializer
+        self.kwargs = kwargs
         self.sent_data = []
         """A list of (name, value, serialized_value).
 
