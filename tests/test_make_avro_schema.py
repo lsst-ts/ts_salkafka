@@ -27,14 +27,13 @@ import numpy as np
 from lsst.ts import salobj
 from lsst.ts import salkafka
 
-np.random.seed(47)
-
 index_gen = salobj.index_generator()
 
 
 class MakeAvroSchemaTestCase(unittest.TestCase):
     def setUp(self):
         salobj.set_random_lsst_dds_domain()
+        np.random.seed(47)
 
     def test_arrays(self):
         """Test the arrays event for the Test SAL component.

@@ -28,8 +28,6 @@ import numpy as np
 from lsst.ts import salobj
 from lsst.ts import salkafka
 
-np.random.seed(47)
-
 
 class Harness:
     def __init__(self):
@@ -85,6 +83,9 @@ class TopicProducerTestCase(unittest.TestCase):
         """
         with salkafka.mocks.insert_all_mocks():
             super().run(result)
+
+    def setUp(self):
+        np.random.seed(47)
 
     def test_basics(self):
         async def doit():
