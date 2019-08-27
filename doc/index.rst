@@ -38,7 +38,7 @@ LSST packages:
 
 * ts_salobj
 * ts_idl
-* Built IDl files for all components you want to monitor.
+* Built IDL files for all components you want to monitor.
 
 .. _lsst.ts.salkafka-contributing:
 
