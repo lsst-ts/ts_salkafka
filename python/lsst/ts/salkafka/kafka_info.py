@@ -31,15 +31,6 @@ from kafkit.registry.aiohttp import RegistryApi
 from kafkit.registry import Serializer
 
 
-# translate from wait_for_ack integer values to
-# AIOKafkaProducer ack argument values
-_WAIT_FOR_ACK_DICT = {
-    0: 0,
-    1: 1,
-    2: "all",
-}
-
-
 class KafkaInfo:
     """Information and clients for using Kafka.
 
@@ -55,10 +46,12 @@ class KafkaInfo:
         Number of partitions for each Kafka topic.
     replication_factor : `int`
         Number of replicas for each Kafka partition.
-    wait_for_ack : `int`
-        0: do not wait (unsafe)
-        1: wait for first kafka broker to respond (recommended)
-        2: wait for all kafka brokers to respond
+    wait_for_ack : `int` or `str`
+        The only allowd values are:
+
+        * 0: do not wait (unsafe)
+        * 1: wait for first kafka broker to respond (recommended)
+        * "all": wait for all kafka brokers to respond
     log : `logging.Logger`
         Logger.
     """
@@ -68,7 +61,9 @@ class KafkaInfo:
         self.registry_url = registry_url
         self.partitions = partitions
         self.replication_factor = replication_factor
-        self.wait_for_ack = _WAIT_FOR_ACK_DICT[wait_for_ack]
+        if wait_for_ack not in (0, 1, "all"):
+            raise ValueError(f"wait_for_ack={wait_for_ack!r} must be one of 0, 1, 'all'")
+        self.wait_for_ack = wait_for_ack
         self.log = log
 
         self.httpsession = None  # created by `start`

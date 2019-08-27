@@ -51,8 +51,7 @@ class Harness:
         registry_url = "https://registry.test.kafka/"
         partitions = 2
         replication_factor = 3
-        # wait_for_ack 0 and 1 are unchanged but 2 becomes "all"
-        wait_for_ack = 2
+        wait_for_ack = 1
 
         self.kafka_info = salkafka.KafkaInfo(broker_url=broker_url,
                                              registry_url=registry_url,

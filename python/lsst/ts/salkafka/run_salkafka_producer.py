@@ -51,10 +51,10 @@ def make_run_salkafka_producer_parser():
                         help="Number of replicas for each Kafka partition.")
     parser.add_argument("--loglevel", type=int, default=logging.INFO,
                         help="Logging level; INFO=20 (default), DEBUG=10")
-    parser.add_argument("--wait-ack", type=int, default=1, dest="wait_for_ack",
+    parser.add_argument("--wait-ack", choices=("0", "1", "all"), default=1, dest="wait_for_ack",
                         help="0: do not wait for ack from any Kafka broker (unsafe). "
                         "1: wait for ack from one Kafka broker (default). "
-                        "2: wait for ack from all Kafka brokers.")
+                        "all: wait for ack from all Kafka brokers.")
     return parser
 
 
@@ -65,6 +65,8 @@ async def run_salkafka_producer():
     """
     parser = make_run_salkafka_producer_parser()
     args = parser.parse_args()
+    if args.wait_for_ack != "all":
+        args.wait_for_ack = int(args.wait_for_ack)
 
     log = logging.getLogger()
     log.addHandler(logging.StreamHandler())

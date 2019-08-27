@@ -40,9 +40,7 @@ class KafkaInfoTestCase(unittest.TestCase):
         registry_url = "https://registry.test.kafka/"
         partitions = 2
         replication_factor = 3
-        # wait_for_ack 0 and 1 are unchanged but 2 becomes "all"
-        wait_for_ack = 2
-        desired_wait_for_ack = "all"
+        wait_for_ack = "all"
         log = logging.getLogger()
 
         async def doit():
@@ -56,7 +54,7 @@ class KafkaInfoTestCase(unittest.TestCase):
                 self.assertEqual(kafka_info.registry_url, registry_url)
                 self.assertEqual(kafka_info.replication_factor, replication_factor)
                 self.assertEqual(kafka_info.broker_url, broker_url)
-                self.assertEqual(kafka_info.wait_for_ack, desired_wait_for_ack)
+                self.assertEqual(kafka_info.wait_for_ack, wait_for_ack)
 
         asyncio.get_event_loop().run_until_complete(doit())
 
@@ -90,7 +88,7 @@ class KafkaInfoTestCase(unittest.TestCase):
         topic_name = "lsst.sal.Test.foo"
         partitions = 1
         replication_factor = 3
-        wait_for_ack = 1
+        wait_for_ack = 0
         log = logging.getLogger()
 
         async def doit():
