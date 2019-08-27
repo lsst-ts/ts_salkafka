@@ -37,7 +37,7 @@ class MockKafkitRegistryApi:
 
     async def register_schema(self, schema, subject):
         self.schema = schema
-        self.subect = subject
+        self.subject = subject
         return 100  # an arbitrary ID
 
 
