@@ -99,7 +99,7 @@ class KafkaInfo:
 
         Parameters
         ----------
-        topic_names : `list'[ `str` ]
+        topic_names : `list`[ `str` ]
             List of Kafka topic names.
 
         Returns
