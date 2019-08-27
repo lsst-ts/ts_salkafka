@@ -63,13 +63,13 @@ async def amain():
                                wait_for_ack=args.wait_for_ack,
                                log=log) as kafka_info:
 
-        log.info("Create producers")
+        log.info("Creating producers")
         producers = []
         for name in args.components:
             producers.append(salkafka.ComponentProducer(domain=domain,
                                                         name=name,
                                                         kafka_info=kafka_info))
-        log.info("Wait for producers to start")
+        log.info("Waiting for producers to start")
         await asyncio.gather(*[producer.start_task for producer in producers])
         log.info("Running")
         await asyncio.Future()  # wait forever

@@ -73,7 +73,7 @@ class KafkaInfo:
 
         self.httpsession = None  # created by `start`
         self.schema_registry = None
-        self.log.info("Make Kafka client session")
+        self.log.info("Making Kafka client session")
         self.broker_client = AdminClient({
             "bootstrap.servers": self.broker_url
         })
@@ -82,7 +82,7 @@ class KafkaInfo:
     async def start(self):
         """Start the Kafka clients.
         """
-        self.log.info("Make avro schema registry.")
+        self.log.info("Making avro schema registry.")
         connector = aiohttp.TCPConnector(limit_per_host=20)
         self.httpsession = aiohttp.ClientSession(connector=connector)
         self.schema_registry = RegistryApi(session=self.httpsession,

@@ -57,10 +57,10 @@ class ComponentProducer:
         kafka_topic_names = [f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
                              for name, prefix in topic_name_prefixes]
 
-        self.log.info(f"Create Kafka topics for {self.salinfo.name} if not already present.")
+        self.log.info(f"Creating Kafka topics for {self.salinfo.name} if not already present.")
         self.kafka_info.make_kafka_topics(kafka_topic_names)
 
-        self.log.info(f"Create SAL/Kafka topic producers for {self.salinfo.name}.")
+        self.log.info(f"Creating SAL/Kafka topic producers for {self.salinfo.name}.")
         try:
             for topic_name, sal_prefix in topic_name_prefixes:
                 self._make_topic(name=topic_name, sal_prefix=sal_prefix)
@@ -102,7 +102,7 @@ class ComponentProducer:
         Close the contained `lsst.ts.salobj.SalInfo`, but not the ``domain``,
         because that is almost certainly used by other objects.
         """
-        self.log.debug("close")
+        self.log.debug("closing")
         await self.salinfo.close()
         await asyncio.gather(*[producer.close() for producer in self.topic_producers.values()])
 
