@@ -32,12 +32,12 @@ async def amain():
     parser = argparse.ArgumentParser(description="Send DDS messages to Kafka for one or more SAL components")
     parser.add_argument("components", nargs="+",
                         help="Names of SAL components, e.g. \"Test\"")
-    parser.add_argument("--broker", dest="broker_url",
+    parser.add_argument("--broker", dest="broker_url", required=True,
                         help="Kafka broker URL, without the transport. "
-                        "Required! Example: 'my.kafka:9000'")
-    parser.add_argument("--registry", dest="registry_url",
+                        "Required. Example: 'my.kafka:9000'")
+    parser.add_argument("--registry", dest="registry_url", required=True,
                         help="Schema Registry URL, including the transport. "
-                        "Required! Example: 'https://registry.my.kafka/'")
+                        "Required. Example: 'https://registry.my.kafka/'")
     parser.add_argument("--partitions", type=int, default=1,
                         help="Number of partitions for each Kafka topic.")
     parser.add_argument("--replication-factor", type=int, default=3,
