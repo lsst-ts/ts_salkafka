@@ -50,8 +50,6 @@ async def amain():
                         "1: wait for ack from one Kafka broker (default). "
                         "2: wait for ack from all Kafka brokers.")
     args = parser.parse_args()
-    if args.broker_url is None or args.registry_url is None:
-        parser.error("--broker and --registry are both required")
 
     log = logging.getLogger()
     log.addHandler(logging.StreamHandler())
