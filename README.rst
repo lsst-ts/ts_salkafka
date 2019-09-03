@@ -4,6 +4,8 @@ ts_salkafka
 
 Forward samples from SAL/DDS to Kafka to populate engineering facilities databases.
 
+Documentation: https://ts-salkafka.lsst.io
+
 The package is compatible with setuptools, as well as LSST DM's ``eups`` package management system and ``scons`` build system.
 Assuming you have the basic LSST DM stack installed you can do the following, from within the package directory:
 
