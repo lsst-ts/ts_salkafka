@@ -1,0 +1,7 @@
+setupRequired(sconsUtils)
+setupRequired(ts_idl)  # IDL files and the quality of service file
+setupRequired(ts_salobj)
+
+envPrepend(PATH, ${PRODUCT_DIR}/bin)
+
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
