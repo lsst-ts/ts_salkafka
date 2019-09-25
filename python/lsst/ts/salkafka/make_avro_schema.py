@@ -82,6 +82,8 @@ def make_avro_schema(topic):
                 "name": field_name,
                 "type": field_type_name,
             }
+        if field_name == "private_sndStamp":
+            field_entry["aliases"] = ["private_efdStamp"]
         fields.append(field_entry)
     return {
         "name": f"lsst.sal.{topic.salinfo.name}.{topic.sal_name}",

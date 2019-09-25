@@ -89,6 +89,8 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     else:
                         # standard field or char0; none of these are arrays
                         desired_field = {"name": name, "type": dtype}
+                    if name == "private_sndStamp":
+                        desired_field["aliases"] = ["private_efdStamp"]
                     desired_fields.append(desired_field)
                 print("DESIRED")
                 for field in desired_fields:
@@ -142,8 +144,12 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     # another standard field not in the XML
                     "priority": "long",
                 }
-                desired_fields = [{"name": name, "type": dtype}
-                                  for name, dtype in desired_field_name_type.items()]
+                desired_fields = []
+                for name, dtype in desired_field_name_type.items():
+                    desired_field = {"name": name, "type": dtype}
+                    if name == "private_sndStamp":
+                        desired_field["aliases"] = ["private_efdStamp"]
+                    desired_fields.append(desired_field)
                 self.assertEqual(schema["fields"], desired_fields)
 
         asyncio.get_event_loop().run_until_complete(doit())
