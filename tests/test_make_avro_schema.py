@@ -52,9 +52,9 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                 self.assertEqual(schema["type"], "record")
                 self.assertEqual(schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}")
                 desired_field_name_type = {
-                    # added by make_avro_schema
+                    # Added by make_avro_schema.
                     "private_kafkaStamp": "double",
-                    # standard fields not in the XML
+                    # Standard fields. These are not in the XML.
                     "TestID": "long",
                     "private_revCode": "string",
                     "private_sndStamp": "double",
@@ -63,10 +63,10 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     "private_origin": "long",
                     "private_host": "long",
                     "private_revCode": "string",
-                    # fields in the XML
+                    # User-defined fields; these are in the XML.
                     "boolean0": "boolean",
                     "byte0": "long",
-                    "char0": "string",
+                    "char0": "string",  # Deprecated and probably absent.
                     "short0": "long",
                     "int0": "long",
                     "long0": "long",
@@ -77,17 +77,22 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     "unsignedLong0": "long",
                     "float0": "double",
                     "double0": "double",
-                    # another standard field not in the XML
+                    # One more standard field; note that
+                    # `priority` is only present for events.
                     "priority": "long",
                 }
+                if "char0" not in set(f["name"] for f in schema["fields"]):
+                    # Modern XML that does not have char0 in arrays
+                    del desired_field_name_type["char0"]
                 desired_fields = []
                 for name, dtype in desired_field_name_type.items():
                     if name.endswith("0") and name != "char0":
-                        # user-defined fields no char0; all these are arrays
+                        # User-defined field that is not char0;
+                        # all of those are arrays.
                         desired_field = {"name": name,
                                          "type": {"type": "array", "items": dtype}}
                     else:
-                        # standard field or char0; none of these are arrays
+                        # Standard field or char0; none of these are arrays.
                         desired_field = {"name": name, "type": dtype}
                     desired_fields.append(desired_field)
                 print("DESIRED")
