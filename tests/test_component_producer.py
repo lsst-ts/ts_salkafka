@@ -23,16 +23,26 @@ import asyncio
 import logging
 import unittest
 
+import asynctest
 import numpy as np
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
 
+np.random.seed(47)
 
-class Harness:
-    def __init__(self):
+
+class TopicProducerTestCase(asynctest.TestCase):
+    def run(self, result=None):
+        """Override `run` to insert mocks for every test.
+
+        https://stackoverflow.com/a/11180583
+        """
+        with salkafka.mocks.insert_all_mocks():
+            super().run(result)
+
+    async def setUp(self):
         salobj.set_random_lsst_dds_domain()
-
         # Use a non-zero index for the producer to test that
         # the topic producer can see it.
         self.csc = salobj.TestCsc(index=5)
@@ -61,87 +71,68 @@ class Harness:
                                                              name="Test",
                                                              kafka_info=self.kafka_info)
 
-    async def __aenter__(self):
         await asyncio.gather(self.component_producer.start_task,
                              self.kafka_info.start_task,
                              self.remote.start_task,
                              self.csc.start_task)
-        return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def tearDown(self):
         await asyncio.gather(self.component_producer.close(),
                              self.kafka_info.close(),
                              self.remote.close(),
                              self.csc.close())
 
+    async def test_basics(self):
+        attr_names = ["ack_ackcmd"]
+        attr_names += ["cmd_" + name for name in self.csc.salinfo.command_names]
+        attr_names += ["evt_" + name for name in self.csc.salinfo.event_names]
+        attr_names += ["tel_" + name for name in self.csc.salinfo.telemetry_names]
+        self.assertEqual(set(attr_names), set(self.component_producer.topic_producers.keys()))
 
-class TopicProducerTestCase(unittest.TestCase):
-    def run(self, result=None):
-        """Override `run` to insert mocks for every test.
+        producer = self.component_producer.topic_producers["evt_arrays"]
+        for isample in range(3):
+            evt_array_data = self.csc.make_random_evt_arrays()
+            self.csc.evt_arrays.put(evt_array_data)
+            for iread in range(10):
+                if len(producer.kafka_producer.sent_data) > isample:
+                    break
+                await asyncio.sleep(0.01)
+            else:
+                self.fail("Data not seen in time")
+            self.assertEqual(len(producer.kafka_producer.sent_data), isample+1)
+            kafka_topic_name, sent_value, serialized_value = producer.kafka_producer.sent_data[-1]
+            self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
+            self.assertIsInstance(serialized_value, bytes)
+            for key, value in evt_array_data.get_vars().items():
+                if key == "private_rcvStamp":
+                    # not set in evt_array_data but set in received
+                    # sample and thus in ``sent_value``
+                    continue
+                if isinstance(value, np.ndarray):
+                    np.testing.assert_array_equal(sent_value[key], value)
+                else:
+                    self.assertEqual(sent_value[key], value)
 
-        https://stackoverflow.com/a/11180583
-        """
-        with salkafka.mocks.insert_all_mocks():
-            super().run(result)
-
-    def setUp(self):
-        np.random.seed(47)
-
-    def test_basics(self):
-        async def doit():
-            async with Harness() as harness:
-                attr_names = ["ack_ackcmd"]
-                attr_names += ["cmd_" + name for name in harness.csc.salinfo.command_names]
-                attr_names += ["evt_" + name for name in harness.csc.salinfo.event_names]
-                attr_names += ["tel_" + name for name in harness.csc.salinfo.telemetry_names]
-                self.assertEqual(set(attr_names), set(harness.component_producer.topic_producers.keys()))
-
-                producer = harness.component_producer.topic_producers["evt_arrays"]
-                for isample in range(3):
-                    evt_array_data = harness.csc.make_random_evt_arrays()
-                    harness.csc.evt_arrays.put(evt_array_data)
-                    for iread in range(10):
-                        if len(producer.kafka_producer.sent_data) > isample:
-                            break
-                        await asyncio.sleep(0.01)
-                    else:
-                        self.fail("Data not seen in time")
-                    self.assertEqual(len(producer.kafka_producer.sent_data), isample+1)
-                    kafka_topic_name, sent_value, serialized_value = producer.kafka_producer.sent_data[-1]
-                    self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
-                    self.assertIsInstance(serialized_value, bytes)
-                    for key, value in evt_array_data.get_vars().items():
-                        if key == "private_rcvStamp":
-                            # not set in evt_array_data but set in received
-                            # sample and thus in ``sent_value``
-                            continue
-                        if isinstance(value, np.ndarray):
-                            np.testing.assert_array_equal(sent_value[key], value)
-                        else:
-                            self.assertEqual(sent_value[key], value)
-
-                producer = harness.component_producer.topic_producers["evt_scalars"]
-                for isample in range(3):
-                    evt_scalar_data = harness.csc.make_random_evt_scalars()
-                    harness.csc.evt_scalars.put(evt_scalar_data)
-                    for iread in range(10):
-                        if len(producer.kafka_producer.sent_data) > isample:
-                            break
-                        await asyncio.sleep(0.01)
-                    else:
-                        self.fail("Data not seen in time")
-                    self.assertEqual(len(producer.kafka_producer.sent_data), isample+1)
-                    kafka_topic_name, sent_value, serialized_value = producer.kafka_producer.sent_data[-1]
-                    self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_scalars")
-                    self.assertIsInstance(serialized_value, bytes)
-                    for key, value in evt_scalar_data.get_vars().items():
-                        if key == "private_rcvStamp":
-                            # not set in evt_scalar_data but set in received
-                            # sample and thus in ``sent_value``
-                            continue
-                        self.assertEqual(sent_value[key], value)
-
-        asyncio.get_event_loop().run_until_complete(doit())
+        producer = self.component_producer.topic_producers["evt_scalars"]
+        for isample in range(3):
+            evt_scalar_data = self.csc.make_random_evt_scalars()
+            self.csc.evt_scalars.put(evt_scalar_data)
+            for iread in range(10):
+                if len(producer.kafka_producer.sent_data) > isample:
+                    break
+                await asyncio.sleep(0.01)
+            else:
+                self.fail("Data not seen in time")
+            self.assertEqual(len(producer.kafka_producer.sent_data), isample+1)
+            kafka_topic_name, sent_value, serialized_value = producer.kafka_producer.sent_data[-1]
+            self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_scalars")
+            self.assertIsInstance(serialized_value, bytes)
+            for key, value in evt_scalar_data.get_vars().items():
+                if key == "private_rcvStamp":
+                    # not set in evt_scalar_data but set in received
+                    # sample and thus in ``sent_value``
+                    continue
+                self.assertEqual(sent_value[key], value)
 
 
 if __name__ == "__main__":
