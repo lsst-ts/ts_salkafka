@@ -42,15 +42,11 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
             index = next(index_gen)
             async with salobj.Domain() as domain:
                 salinfo = salobj.SalInfo(domain=domain, name="Test", index=index)
-                topic0 = salobj.topics.ControllerEvent(salinfo=salinfo, name="summaryState")
-                schema0 = salkafka.make_avro_schema(topic=topic0)
-                print(f"schema0={schema0}")
-
                 topic = salobj.topics.ControllerEvent(salinfo=salinfo, name="arrays")
                 schema = salkafka.make_avro_schema(topic=topic)
-                self.assertEqual(len(schema), 3)
-                self.assertEqual(schema["type"], "record")
+                self.assertGreaterEqual(len(schema), 3)
                 self.assertEqual(schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}")
+                self.assertEqual(schema["type"], "record")
                 desired_field_name_type = {
                     # Added by make_avro_schema.
                     "private_kafkaStamp": "double",
@@ -84,24 +80,32 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                 if "char0" not in set(f["name"] for f in schema["fields"]):
                     # Modern XML that does not have char0 in arrays
                     del desired_field_name_type["char0"]
-                desired_fields = []
-                for name, dtype in desired_field_name_type.items():
-                    if name.endswith("0") and name != "char0":
-                        # User-defined field that is not char0;
-                        # all of those are arrays.
-                        desired_field = {"name": name,
-                                         "type": {"type": "array", "items": dtype}}
-                    else:
-                        # Standard field or char0; none of these are arrays.
-                        desired_field = {"name": name, "type": dtype}
-                    desired_fields.append(desired_field)
-                print("DESIRED")
-                for field in desired_fields:
-                    print(field)
-                print("ACTUAL")
-                for field in schema["fields"]:
-                    print(field)
-                self.assertEqual(schema["fields"], desired_fields)
+                schema_field_names = [item["name"] for item in schema["fields"]]
+                self.assertEqual(set(desired_field_name_type.keys()), set(schema_field_names))
+                for schema_item in schema["fields"]:
+                    with self.subTest(schema_item=schema_item):
+                        field_name = schema_item["name"]
+                        desired_item_type = desired_field_name_type[field_name]
+                        if field_name.endswith("0") and field_name != "char0":
+                            desired_type = dict(type="array", items=desired_item_type)
+                        else:
+                            desired_type = desired_item_type
+                        self.assertEqual(schema_item["type"], desired_type)
+                        if field_name == "private_kafkaStamp":
+                            self.assertEqual(schema_item["units"], "second")
+                            self.assertEqual(schema_item["description"],
+                                             "TAI time at which the Kafka message was created.")
+                        elif field_name == "TestID":
+                            # SAL 4.0 provides no metadata for this topic
+                            # but SAL 4.1 may.
+                            pass
+                        elif field_name.startswith("private_"):
+                            self.assertIsInstance(schema_item["units"], str)
+                            self.assertIsInstance(schema_item["description"], str)
+                        else:
+                            # SAL 4.0 provides no metadata for array topics
+                            # but SAL 4.1 will.
+                            pass
 
         asyncio.get_event_loop().run_until_complete(doit())
 
@@ -114,9 +118,9 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                 salinfo = salobj.SalInfo(domain=domain, name="Test", index=index)
                 topic = salobj.topics.ControllerEvent(salinfo=salinfo, name="scalars")
                 schema = salkafka.make_avro_schema(topic=topic)
-                self.assertEqual(len(schema), 3)
-                self.assertEqual(schema["type"], "record")
+                self.assertGreaterEqual(len(schema), 3)
                 self.assertEqual(schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}")
+                self.assertEqual(schema["type"], "record")
                 desired_field_name_type = {
                     # added by make_avro_schema
                     "private_kafkaStamp": "double",
@@ -147,9 +151,23 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     # another standard field not in the XML
                     "priority": "long",
                 }
-                desired_fields = [{"name": name, "type": dtype}
-                                  for name, dtype in desired_field_name_type.items()]
-                self.assertEqual(schema["fields"], desired_fields)
+                for schema_item in schema["fields"]:
+                    with self.subTest(schema_item=schema_item):
+                        field_name = schema_item["name"]
+                        print(f"field_name={field_name}")
+                        desired_type = desired_field_name_type[field_name]
+                        self.assertEqual(schema_item["type"], desired_type)
+                        if field_name == "private_kafkaStamp":
+                            self.assertEqual(schema_item["units"], "second")
+                            self.assertEqual(schema_item["description"],
+                                             "TAI time at which the Kafka message was created.")
+                        elif field_name == "TestID":
+                            # SAL 4.0 provides no metadata for this topic
+                            # but SAL 4.1 may.
+                            pass
+                        else:
+                            self.assertIsInstance(schema_item["units"], str)
+                            self.assertIsInstance(schema_item["description"], str)
 
         asyncio.get_event_loop().run_until_complete(doit())
 
