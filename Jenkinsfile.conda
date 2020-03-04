@@ -35,7 +35,7 @@ pipeline {
                         docker exec ${container_name} sh -c "source ~/miniconda3/bin/activate && \
                             anaconda login --user ${anaconda_user} --password ${anaconda_pass} && \
                             anaconda upload -u lsstts --force \
-                            ~/miniconda3/conda-bld/linux-64/ts-salobj-${salkafka_version}-py37_0.tar.bz2"
+                            ~/miniconda3/conda-bld/linux-64/ts-salkafka-${salkafka_version}-py37_0.tar.bz2"
                         """
                     }
                 }
