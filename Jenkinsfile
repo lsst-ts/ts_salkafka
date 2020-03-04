@@ -71,17 +71,13 @@ pipeline {
                 }
             }
         }
-        stage("Building/Uploading documentation") {
-            steps {
-                script {
-                    sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && setup ts_salkafka -t saluser && package-docs build && pip install ltd-conveyor==0.5.0a1 && ltd upload --product ts-salkafka --git-ref ${branch_name} --dir doc/_build/html\"
-                    """
-                }
-            }
-        }
     }
     post {
+        success{
+            sh """
+            docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && setup ts_salkafka -t saluser && package-docs build && pip install ltd-conveyor==0.5.0a1 && ltd upload --product ts-salkafka --git-ref ${branch_name} --dir doc/_build/html || echo Building documentation failed.... IGNORING... \"
+            """
+        }
         always {
             // The path of xml needed by JUnit is relative to
             // the workspace.

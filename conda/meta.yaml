@@ -1,0 +1,33 @@
+{% set data= load_setup_py_data() %}
+package:
+  name: ts-salkafka
+  version: {{ environ.get('GIT_DESCRIBE_TAG', 'default')}}
+
+source:
+  git_url: https://github.com/lsst-ts/ts_salkafka
+  git_rev: {{ TS_SALKAFKA_VERSION }}
+
+build:
+  script: python -m pip install --ignore-installed .
+  skip: True #[win]
+
+test:
+  requires:
+    - pytest
+    - pytest-flake8
+    - pytest-cov
+    - asynctest
+
+requirements:
+  host:
+    - python
+    - pip
+    - setuptools_scm
+    - setuptools
+    - pytest-runner
+  run:
+    - python
+    - setuptools
+    - setuptools_scm
+    - ts-salobj
+    - ts-idl
