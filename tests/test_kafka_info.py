@@ -44,12 +44,14 @@ class KafkaInfoTestCase(asynctest.TestCase):
         wait_for_ack = "all"
         log = logging.getLogger()
 
-        async with salkafka.KafkaInfo(broker_url=broker_url,
-                                      registry_url=registry_url,
-                                      partitions=partitions,
-                                      replication_factor=replication_factor,
-                                      wait_for_ack=wait_for_ack,
-                                      log=log) as kafka_info:
+        async with salkafka.KafkaInfo(
+            broker_url=broker_url,
+            registry_url=registry_url,
+            partitions=partitions,
+            replication_factor=replication_factor,
+            wait_for_ack=wait_for_ack,
+            log=log,
+        ) as kafka_info:
             self.assertEqual(kafka_info.broker_url, broker_url)
             self.assertEqual(kafka_info.registry_url, registry_url)
             self.assertEqual(kafka_info.replication_factor, replication_factor)
@@ -64,12 +66,14 @@ class KafkaInfoTestCase(asynctest.TestCase):
         wait_for_ack = 1
         log = logging.getLogger()
 
-        async with salkafka.KafkaInfo(broker_url=broker_url,
-                                      registry_url=registry_url,
-                                      partitions=partitions,
-                                      replication_factor=replication_factor,
-                                      wait_for_ack=wait_for_ack,
-                                      log=log) as kafka_info:
+        async with salkafka.KafkaInfo(
+            broker_url=broker_url,
+            registry_url=registry_url,
+            partitions=partitions,
+            replication_factor=replication_factor,
+            wait_for_ack=wait_for_ack,
+            log=log,
+        ) as kafka_info:
             existing_topic_names = ["old_topic", "another_old_topic"]
             kafka_info.broker_client.set_existing_topic_names(existing_topic_names)
             new_topic_names = ["new_topic", "another_new_topic"]
@@ -86,15 +90,19 @@ class KafkaInfoTestCase(asynctest.TestCase):
         wait_for_ack = 0
         log = logging.getLogger()
 
-        async with salkafka.KafkaInfo(broker_url=broker_url,
-                                      registry_url=registry_url,
-                                      partitions=partitions,
-                                      replication_factor=replication_factor,
-                                      wait_for_ack=wait_for_ack,
-                                      log=log) as kafka_info:
-            avro_schema = {"name": topic_name,
-                           "type": "record",
-                           "fields": [{"name": "TestID", "type": "long"}]}
+        async with salkafka.KafkaInfo(
+            broker_url=broker_url,
+            registry_url=registry_url,
+            partitions=partitions,
+            replication_factor=replication_factor,
+            wait_for_ack=wait_for_ack,
+            log=log,
+        ) as kafka_info:
+            avro_schema = {
+                "name": topic_name,
+                "type": "record",
+                "fields": [{"name": "TestID", "type": "long"}],
+            }
             producer = await kafka_info.make_producer(avro_schema=avro_schema)
             self.assertEqual(producer.bootstrap_servers, broker_url)
             self.assertEqual(producer.sent_data, [])

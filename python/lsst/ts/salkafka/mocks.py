@@ -19,8 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["MockKafkitRegistryApi", "MockAIOKafkaProducer",
-           "MockConfluentAdminClient", "insert_all_mocks"]
+__all__ = [
+    "MockKafkitRegistryApi",
+    "MockAIOKafkaProducer",
+    "MockConfluentAdminClient",
+    "insert_all_mocks",
+]
 
 import contextlib
 import types
@@ -31,6 +35,7 @@ from . import kafka_info
 class MockKafkitRegistryApi:
     """Mock `kafkit.registry.aiohttp.RegistryApi`.
     """
+
     def __init__(self, session, url):
         self.session = session
         self.url = url
@@ -44,6 +49,7 @@ class MockKafkitRegistryApi:
 class MockAIOKafkaProducer:
     """Mock `aiokafka.AIOKafkaProducer`.
     """
+
     def __init__(self, *, loop, bootstrap_servers, acks, value_serializer, **kwargs):
         self.loop = loop
         self.bootstrap_servers = bootstrap_servers
@@ -78,6 +84,7 @@ class MockConfluentAdminClient:
     Created with a small set of existing topic names;
     you can replace them with `set_existing_topic_names`.
     """
+
     def __init__(self, arg):
         self.arg = arg
         existing_topic_names = [
@@ -105,16 +112,19 @@ class MockConfluentAdminClient:
                 self.new_topic_metadata = new_topic_metadata
 
             def items(self):
-                return [(nt.topic, _MockConfluentFuture()) for nt in self.new_topic_metadata]
+                return [
+                    (nt.topic, _MockConfluentFuture()) for nt in self.new_topic_metadata
+                ]
 
         return CreateTopicsReturn(new_topic_metadata)
 
 
 # dict of class name: mock class
-_MOCK_CLASSES = dict(RegistryApi=MockKafkitRegistryApi,
-                     AIOKafkaProducer=MockAIOKafkaProducer,
-                     AdminClient=MockConfluentAdminClient,
-                     )
+_MOCK_CLASSES = dict(
+    RegistryApi=MockKafkitRegistryApi,
+    AIOKafkaProducer=MockAIOKafkaProducer,
+    AdminClient=MockConfluentAdminClient,
+)
 
 # dict of class name: real class
 _REAL_CLASSES = dict((name, getattr(kafka_info, name)) for name in _MOCK_CLASSES)

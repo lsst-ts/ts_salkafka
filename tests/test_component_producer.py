@@ -61,33 +61,41 @@ class TopicProducerTestCase(asynctest.TestCase):
         replication_factor = 3
         wait_for_ack = 1
 
-        self.kafka_info = salkafka.KafkaInfo(broker_url=broker_url,
-                                             registry_url=registry_url,
-                                             partitions=partitions,
-                                             replication_factor=replication_factor,
-                                             wait_for_ack=wait_for_ack,
-                                             log=log)
-        self.component_producer = salkafka.ComponentProducer(domain=self.csc.domain,
-                                                             name="Test",
-                                                             kafka_info=self.kafka_info)
+        self.kafka_info = salkafka.KafkaInfo(
+            broker_url=broker_url,
+            registry_url=registry_url,
+            partitions=partitions,
+            replication_factor=replication_factor,
+            wait_for_ack=wait_for_ack,
+            log=log,
+        )
+        self.component_producer = salkafka.ComponentProducer(
+            domain=self.csc.domain, name="Test", kafka_info=self.kafka_info
+        )
 
-        await asyncio.gather(self.component_producer.start_task,
-                             self.kafka_info.start_task,
-                             self.remote.start_task,
-                             self.csc.start_task)
+        await asyncio.gather(
+            self.component_producer.start_task,
+            self.kafka_info.start_task,
+            self.remote.start_task,
+            self.csc.start_task,
+        )
 
     async def tearDown(self):
-        await asyncio.gather(self.component_producer.close(),
-                             self.kafka_info.close(),
-                             self.remote.close(),
-                             self.csc.close())
+        await asyncio.gather(
+            self.component_producer.close(),
+            self.kafka_info.close(),
+            self.remote.close(),
+            self.csc.close(),
+        )
 
     async def test_basics(self):
         attr_names = ["ack_ackcmd"]
         attr_names += ["cmd_" + name for name in self.csc.salinfo.command_names]
         attr_names += ["evt_" + name for name in self.csc.salinfo.event_names]
         attr_names += ["tel_" + name for name in self.csc.salinfo.telemetry_names]
-        self.assertEqual(set(attr_names), set(self.component_producer.topic_producers.keys()))
+        self.assertEqual(
+            set(attr_names), set(self.component_producer.topic_producers.keys())
+        )
 
         producer = self.component_producer.topic_producers["evt_arrays"]
         for isample in range(3):
@@ -99,8 +107,12 @@ class TopicProducerTestCase(asynctest.TestCase):
                 await asyncio.sleep(0.01)
             else:
                 self.fail("Data not seen in time")
-            self.assertEqual(len(producer.kafka_producer.sent_data), isample+1)
-            kafka_topic_name, sent_value, serialized_value = producer.kafka_producer.sent_data[-1]
+            self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
+            (
+                kafka_topic_name,
+                sent_value,
+                serialized_value,
+            ) = producer.kafka_producer.sent_data[-1]
             self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
             self.assertIsInstance(serialized_value, bytes)
             for key, value in evt_array_data.get_vars().items():
@@ -123,8 +135,12 @@ class TopicProducerTestCase(asynctest.TestCase):
                 await asyncio.sleep(0.01)
             else:
                 self.fail("Data not seen in time")
-            self.assertEqual(len(producer.kafka_producer.sent_data), isample+1)
-            kafka_topic_name, sent_value, serialized_value = producer.kafka_producer.sent_data[-1]
+            self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
+            (
+                kafka_topic_name,
+                sent_value,
+                serialized_value,
+            ) = producer.kafka_producer.sent_data[-1]
             self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_scalars")
             self.assertIsInstance(serialized_value, bytes)
             for key, value in evt_scalar_data.get_vars().items():
