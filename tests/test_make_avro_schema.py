@@ -38,6 +38,7 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
     def test_arrays(self):
         """Test the arrays event for the Test SAL component.
         """
+
         async def doit():
             index = next(index_gen)
             async with salobj.Domain() as domain:
@@ -45,7 +46,9 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                 topic = salobj.topics.ControllerEvent(salinfo=salinfo, name="arrays")
                 schema = salkafka.make_avro_schema(topic=topic)
                 self.assertGreaterEqual(len(schema), 3)
-                self.assertEqual(schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}")
+                self.assertEqual(
+                    schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}"
+                )
                 self.assertEqual(schema["type"], "record")
                 desired_field_name_type = {
                     # Added by make_avro_schema.
@@ -81,7 +84,9 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     # Modern XML that does not have char0 in arrays
                     del desired_field_name_type["char0"]
                 schema_field_names = [item["name"] for item in schema["fields"]]
-                self.assertEqual(set(desired_field_name_type.keys()), set(schema_field_names))
+                self.assertEqual(
+                    set(desired_field_name_type.keys()), set(schema_field_names)
+                )
                 for schema_item in schema["fields"]:
                     with self.subTest(schema_item=schema_item):
                         field_name = schema_item["name"]
@@ -93,8 +98,10 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                         self.assertEqual(schema_item["type"], desired_type)
                         if field_name == "private_kafkaStamp":
                             self.assertEqual(schema_item["units"], "second")
-                            self.assertEqual(schema_item["description"],
-                                             "TAI time at which the Kafka message was created.")
+                            self.assertEqual(
+                                schema_item["description"],
+                                "TAI time at which the Kafka message was created.",
+                            )
                         elif field_name == "TestID":
                             # SAL 4.0 provides no metadata for this topic
                             # but SAL 4.1 may.
@@ -112,6 +119,7 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
     def test_scalars(self):
         """Test the scalars event for the Test SAL component.
         """
+
         async def doit():
             index = next(index_gen)
             async with salobj.Domain() as domain:
@@ -119,7 +127,9 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                 topic = salobj.topics.ControllerEvent(salinfo=salinfo, name="scalars")
                 schema = salkafka.make_avro_schema(topic=topic)
                 self.assertGreaterEqual(len(schema), 3)
-                self.assertEqual(schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}")
+                self.assertEqual(
+                    schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}"
+                )
                 self.assertEqual(schema["type"], "record")
                 desired_field_name_type = {
                     # added by make_avro_schema
@@ -159,8 +169,10 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                         self.assertEqual(schema_item["type"], desired_type)
                         if field_name == "private_kafkaStamp":
                             self.assertEqual(schema_item["units"], "second")
-                            self.assertEqual(schema_item["description"],
-                                             "TAI time at which the Kafka message was created.")
+                            self.assertEqual(
+                                schema_item["description"],
+                                "TAI time at which the Kafka message was created.",
+                            )
                         elif field_name == "TestID":
                             # SAL 4.0 provides no metadata for this topic
                             # but SAL 4.1 may.
