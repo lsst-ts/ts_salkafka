@@ -40,6 +40,7 @@ class TopicProducer:
     log : `logging.Logger`
         Parent log.
     """
+
     def __init__(self, topic, kafka_info, log):
         self.topic = topic
         self.kafka_info = kafka_info
@@ -59,7 +60,9 @@ class TopicProducer:
         """Start the Kafka producer.
         """
         self.log.debug("Making kafka producer")
-        self.kafka_producer = await self.kafka_info.make_producer(avro_schema=self.avro_schema)
+        self.kafka_producer = await self.kafka_info.make_producer(
+            avro_schema=self.avro_schema
+        )
         self.topic.callback = self
 
     async def __call__(self, data):
@@ -72,4 +75,6 @@ class TopicProducer:
         """
         avro_data = data.get_vars()
         avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
-        await self.kafka_producer.send_and_wait(self.avro_schema["name"], value=avro_data)
+        await self.kafka_producer.send_and_wait(
+            self.avro_schema["name"], value=avro_data
+        )

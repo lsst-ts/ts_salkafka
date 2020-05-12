@@ -64,10 +64,14 @@ def make_avro_schema(topic):
     data_dict = data.get_vars()
     topic_metadata = topic.metadata
 
-    fields = [dict(name="private_kafkaStamp",
-                   type="double",
-                   description="TAI time at which the Kafka message was created.",
-                   units="second")]
+    fields = [
+        dict(
+            name="private_kafkaStamp",
+            type="double",
+            description="TAI time at which the Kafka message was created.",
+            units="second",
+        )
+    ]
     for field_name, field_data in data_dict.items():
         # Set Avro type from Python type because this is more robust than
         # getting it from field metadata (which is parsed on a "best effort"
@@ -81,10 +85,7 @@ def make_avro_schema(topic):
         else:
             # Field is a scalar.
             avro_field_type = _SCALAR_TYPE_DICT[type(field_data)]
-        field_entry = dict(
-            name=field_name,
-            type=avro_field_type,
-        )
+        field_entry = dict(name=field_name, type=avro_field_type,)
 
         # Add description and units metadata, if available.
         field_metadata = topic_metadata.field_info.get(field_name)
@@ -99,7 +100,8 @@ def make_avro_schema(topic):
     avro_schema = dict(
         name=f"lsst.sal.{topic.salinfo.name}.{topic.sal_name}",
         type="record",
-        fields=fields)
+        fields=fields,
+    )
 
     for attr_name in ("sal_version", "xml_version"):
         value = getattr(topic.salinfo.metadata, attr_name, None)

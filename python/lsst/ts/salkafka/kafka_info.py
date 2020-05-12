@@ -24,6 +24,7 @@ __all__ = ["KafkaInfo"]
 import asyncio
 
 import aiohttp
+
 # use `from x import y` to support replacing these classes with mocks
 from aiokafka import AIOKafkaProducer
 from confluent_kafka.admin import AdminClient, NewTopic
@@ -55,23 +56,31 @@ class KafkaInfo:
     log : `logging.Logger`
         Logger.
     """
-    def __init__(self, broker_url, registry_url, partitions,
-                 replication_factor, wait_for_ack, log):
+
+    def __init__(
+        self,
+        broker_url,
+        registry_url,
+        partitions,
+        replication_factor,
+        wait_for_ack,
+        log,
+    ):
         self.broker_url = broker_url
         self.registry_url = registry_url
         self.partitions = partitions
         self.replication_factor = replication_factor
         if wait_for_ack not in (0, 1, "all"):
-            raise ValueError(f"wait_for_ack={wait_for_ack!r} must be one of 0, 1, 'all'")
+            raise ValueError(
+                f"wait_for_ack={wait_for_ack!r} must be one of 0, 1, 'all'"
+            )
         self.wait_for_ack = wait_for_ack
         self.log = log
 
         self.httpsession = None  # created by `start`
         self.schema_registry = None
         self.log.info("Making Kafka client session")
-        self.broker_client = AdminClient({
-            "bootstrap.servers": self.broker_url
-        })
+        self.broker_client = AdminClient({"bootstrap.servers": self.broker_url})
         self.start_task = asyncio.ensure_future(self.start())
 
     async def start(self):
@@ -80,8 +89,9 @@ class KafkaInfo:
         self.log.info("Making avro schema registry.")
         connector = aiohttp.TCPConnector(limit_per_host=20)
         self.httpsession = aiohttp.ClientSession(connector=connector)
-        self.schema_registry = RegistryApi(session=self.httpsession,
-                                           url=self.registry_url)
+        self.schema_registry = RegistryApi(
+            session=self.httpsession, url=self.registry_url
+        )
 
     async def close(self):
         """Close the Kafka clients.
@@ -107,10 +117,14 @@ class KafkaInfo:
         new_topic_names = sorted(set(topic_names) - existing_topic_names)
         if len(new_topic_names) == 0:
             return []
-        new_topic_metadata = [NewTopic(topic_name,
-                                       num_partitions=self.partitions,
-                                       replication_factor=self.replication_factor)
-                              for topic_name in new_topic_names]
+        new_topic_metadata = [
+            NewTopic(
+                topic_name,
+                num_partitions=self.partitions,
+                replication_factor=self.replication_factor,
+            )
+            for topic_name in new_topic_names
+        ]
         fs = self.broker_client.create_topics(new_topic_metadata)
         for topic_name, future in fs.items():
             try:

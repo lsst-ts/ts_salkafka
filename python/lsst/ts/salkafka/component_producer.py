@@ -39,6 +39,7 @@ class ComponentProducer:
     kafka_info : `KafkaInfo`
         Information and clients for using Kafka.
     """
+
     def __init__(self, domain, name, kafka_info):
         self.domain = domain
         # index=0 means we get samples from all SAL indices of the component
@@ -51,13 +52,23 @@ class ComponentProducer:
 
         # create a list of topic names and sal prefixes
         topic_name_prefixes = [("ackcmd", "")]
-        topic_name_prefixes += [(cmd_name, "command_") for cmd_name in self.salinfo.command_names]
-        topic_name_prefixes += [(evt_name, "logevent_") for evt_name in self.salinfo.event_names]
-        topic_name_prefixes += [(tel_name, "") for tel_name in self.salinfo.telemetry_names]
-        kafka_topic_names = [f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
-                             for name, prefix in topic_name_prefixes]
+        topic_name_prefixes += [
+            (cmd_name, "command_") for cmd_name in self.salinfo.command_names
+        ]
+        topic_name_prefixes += [
+            (evt_name, "logevent_") for evt_name in self.salinfo.event_names
+        ]
+        topic_name_prefixes += [
+            (tel_name, "") for tel_name in self.salinfo.telemetry_names
+        ]
+        kafka_topic_names = [
+            f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
+            for name, prefix in topic_name_prefixes
+        ]
 
-        self.log.info(f"Creating Kafka topics for {self.salinfo.name} if not already present.")
+        self.log.info(
+            f"Creating Kafka topics for {self.salinfo.name} if not already present."
+        )
         self.kafka_info.make_kafka_topics(kafka_topic_names)
 
         self.log.info(f"Creating SAL/Kafka topic producers for {self.salinfo.name}.")
@@ -79,13 +90,10 @@ class ComponentProducer:
         sal_prefix : `str`
             SAL topic prefix: one of "command\_", "logevent\_" or ""
         """
-        topic = salobj.topics.ReadTopic(salinfo=self.salinfo,
-                                        name=name,
-                                        sal_prefix=sal_prefix,
-                                        max_history=0)
-        producer = TopicProducer(topic=topic,
-                                 kafka_info=self.kafka_info,
-                                 log=self.log)
+        topic = salobj.topics.ReadTopic(
+            salinfo=self.salinfo, name=name, sal_prefix=sal_prefix, max_history=0
+        )
+        producer = TopicProducer(topic=topic, kafka_info=self.kafka_info, log=self.log)
         self.topic_producers[topic.attr_name] = producer
 
     async def start(self):
@@ -93,7 +101,9 @@ class ComponentProducer:
         """
         self.log.debug("starting")
         await self.salinfo.start()
-        await asyncio.gather(*[producer.start_task for producer in self.topic_producers.values()])
+        await asyncio.gather(
+            *[producer.start_task for producer in self.topic_producers.values()]
+        )
         self.log.debug("started")
 
     async def close(self):
@@ -104,7 +114,9 @@ class ComponentProducer:
         """
         self.log.debug("closing")
         await self.salinfo.close()
-        await asyncio.gather(*[producer.close() for producer in self.topic_producers.values()])
+        await asyncio.gather(
+            *[producer.close() for producer in self.topic_producers.values()]
+        )
 
     async def __aenter__(self):
         await self.start_task

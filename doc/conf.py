@@ -8,6 +8,8 @@ import lsst.ts.salkafka
 
 
 _g = globals()
-_g.update(build_package_configs(
-    project_name='ts_salkafka',
-    version=lsst.ts.salkafka.__version__))
+_g.update(
+    build_package_configs(
+        project_name="ts_salkafka", version=lsst.ts.salkafka.__version__
+    )
+)
