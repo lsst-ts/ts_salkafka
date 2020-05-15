@@ -1,10 +1,10 @@
 .. py:currentmodule:: lsst.ts.salkafka
 
-.. _lsst.ts.salkafka.revision_history:
+.. _lsst.ts.salkafka.version_history:
 
-################
-Revision History
-################
+###############
+Version History
+###############
 
 v1.1.2
 ======
