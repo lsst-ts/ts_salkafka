@@ -54,9 +54,9 @@ Python API reference
 .. automodapi:: lsst.ts.salkafka
    :no-main-docstr:
 
-Revision History
-================
+Version History
+===============
 
 .. toctree::
-    revision_history
+    version_history
     :maxdepth: 1

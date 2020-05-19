@@ -17,6 +17,7 @@ test:
     - pytest-flake8
     - pytest-cov
     - asynctest
+    - black
 
 requirements:
   host:
