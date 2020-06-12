@@ -25,6 +25,7 @@ __all__ = ["make_run_salkafka_producer_parser", "run_salkafka_producer"]
 import argparse
 import asyncio
 import logging
+import pathlib
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
@@ -100,6 +101,10 @@ async def run_salkafka_producer():
     log.addHandler(logging.StreamHandler())
     log.setLevel(args.loglevel)
 
+    semaphore_file = pathlib.Path("/tmp", "RUNNING")
+    if semaphore_file.exists():
+        semaphore_file.unlink()
+
     async with salobj.Domain() as domain, salkafka.KafkaInfo(
         broker_url=args.broker_url,
         registry_url=args.registry_url,
@@ -120,4 +125,7 @@ async def run_salkafka_producer():
         log.info("Waiting for producers to start")
         await asyncio.gather(*[producer.start_task for producer in producers])
         log.info("Running")
+
+        semaphore_file.touch()
+
         await asyncio.Future()  # wait forever
