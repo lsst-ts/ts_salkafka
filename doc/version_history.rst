@@ -6,6 +6,24 @@
 Version History
 ###############
 
+v1.2.0
+======
+
+Changes:
+
+* Update schema test for compatibility with ts_sal 4-5.
+  ts_sal 4.2 will add the private_identity field and ts_sal 5 will remove the private_host field.
+
+Requirements:
+
+* ts_salobj 5.11 - 6
+* ts_idl 1
+* IDL files for all CSCs you watch
+* aiohttp 3.5
+* aiokafka 0.5
+* confluent-kafka v1.1
+* kafkit 0.1
+
 v1.1.3
 ======
 
@@ -18,7 +36,7 @@ Requirements:
 
 * ts_salobj 5.11
 * ts_idl 1
-* IDL files for all CSCs
+* IDL files for all CSCs you watch
 * aiohttp 3.5
 * aiokafka 0.5
 * confluent-kafka v1.1
@@ -37,7 +55,7 @@ Requirements:
 
 * ts_salobj 5.11
 * ts_idl 1
-* IDL files for all CSCs
+* IDL files for all CSCs you watch
 * aiohttp 3.5
 * aiokafka 0.5
 * confluent-kafka v1.1
@@ -52,7 +70,7 @@ Requirements:
 
 * ts_salobj 5.11
 * ts_idl 1
-* IDL files for all CSCs
+* IDL files for all CSCs you watch
 * aiohttp 3.5
 * aiokafka 0.5
 * confluent-kafka v1.1
@@ -70,7 +88,7 @@ Requirements:
 
 * ts_salobj 5.1
 * ts_idl 1
-* IDL files for all CSCs
+* IDL files for all CSCs you watch
 * aiohttp 3.5
 * aiokafka 0.5
 * confluent-kafka v1.1
@@ -85,7 +103,7 @@ Requirements:
 
 * ts_salobj 4.5
 * ts_idl
-* IDL files for all CSCs
+* IDL files for all CSCs you watch
 * aiohttp 3.5
 * aiokafka 0.5
 * confluent-kafka v1.1
@@ -101,7 +119,7 @@ Requirements:
 
 * ts_salobj 4.5
 * ts_idl
-* IDL files for all CSCs
+* IDL files for all CSCs you watch
 * aiohttp 3.5
 * aiokafka 0.5
 * confluent-kafka v1.1
