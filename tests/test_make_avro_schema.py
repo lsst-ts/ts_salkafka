@@ -44,6 +44,7 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
             async with salobj.Domain() as domain:
                 salinfo = salobj.SalInfo(domain=domain, name="Test", index=index)
                 topic = salobj.topics.ControllerEvent(salinfo=salinfo, name="arrays")
+                topic_sample = topic.DataType()
                 schema = salkafka.make_avro_schema(topic=topic)
                 self.assertGreaterEqual(len(schema), 3)
                 self.assertEqual(
@@ -62,10 +63,11 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     "private_origin": "long",
                     "private_host": "long",
                     "private_revCode": "string",
+                    # This standard field is only present for events.
+                    "priority": "long",
                     # User-defined fields; these are in the XML.
                     "boolean0": "boolean",
                     "byte0": "long",
-                    "char0": "string",  # Deprecated and probably absent.
                     "short0": "long",
                     "int0": "long",
                     "long0": "long",
@@ -76,13 +78,14 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     "unsignedLong0": "long",
                     "float0": "double",
                     "double0": "double",
-                    # One more standard field; note that
-                    # `priority` is only present for events.
-                    "priority": "long",
                 }
-                if "char0" not in set(f["name"] for f in schema["fields"]):
-                    # Modern XML that does not have char0 in arrays
-                    del desired_field_name_type["char0"]
+                if hasattr(topic_sample, "private_host"):
+                    # Deprecated, will be gone in ts_sal 5
+                    desired_field_name_type["private_host"] = "long"
+                if hasattr(topic_sample, "private_identity"):
+                    # Coming in ts_sal 4.2
+                    desired_field_name_type["private_identity"] = "string"
+
                 schema_field_names = [item["name"] for item in schema["fields"]]
                 self.assertEqual(
                     set(desired_field_name_type.keys()), set(schema_field_names)
@@ -125,6 +128,7 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
             async with salobj.Domain() as domain:
                 salinfo = salobj.SalInfo(domain=domain, name="Test", index=index)
                 topic = salobj.topics.ControllerEvent(salinfo=salinfo, name="scalars")
+                topic_sample = topic.DataType()
                 schema = salkafka.make_avro_schema(topic=topic)
                 self.assertGreaterEqual(len(schema), 3)
                 self.assertEqual(
@@ -141,8 +145,9 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     "private_rcvStamp": "double",
                     "private_seqNum": "long",
                     "private_origin": "long",
-                    "private_host": "long",
                     "private_revCode": "string",
+                    # This standard field is only present for events.
+                    "priority": "long",
                     # fields in the XML
                     "boolean0": "boolean",
                     "byte0": "long",
@@ -161,6 +166,13 @@ class MakeAvroSchemaTestCase(unittest.TestCase):
                     # another standard field not in the XML
                     "priority": "long",
                 }
+                if hasattr(topic_sample, "private_host"):
+                    # Deprecated, will be gone in ts_sal 5
+                    desired_field_name_type["private_host"] = "long"
+                if hasattr(topic_sample, "private_identity"):
+                    # Coming in ts_sal 4.2
+                    desired_field_name_type["private_identity"] = "string"
+
                 for schema_item in schema["fields"]:
                     with self.subTest(schema_item=schema_item):
                         field_name = schema_item["name"]
