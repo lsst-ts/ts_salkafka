@@ -6,6 +6,21 @@
 Version History
 ###############
 
+v1.3.0
+======
+
+Fix handling of ackcmd data. The fix requires ts_salobj 5.16 or 6
+
+Requirements:
+
+* ts_salobj 5.16 or 6
+* ts_idl 1
+* IDL files for all CSCs you watch
+* aiohttp 3.5
+* aiokafka 0.5
+* confluent-kafka v1.1
+* kafkit 0.1
+
 v1.2.0
 ======
 
