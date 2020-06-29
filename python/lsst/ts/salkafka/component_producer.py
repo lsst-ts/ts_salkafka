@@ -50,7 +50,7 @@ class ComponentProducer:
         """Dict of topic attr_name: TopicProducer.
         """
 
-        # create a list of topic names and sal prefixes
+        # Create a list of (basic topic name, SAL topic name prefix).
         topic_name_prefixes = [("ackcmd", "")]
         topic_name_prefixes += [
             (cmd_name, "command_") for cmd_name in self.salinfo.command_names
@@ -91,7 +91,11 @@ class ComponentProducer:
             SAL topic prefix: one of "command\_", "logevent\_" or ""
         """
         topic = salobj.topics.ReadTopic(
-            salinfo=self.salinfo, name=name, sal_prefix=sal_prefix, max_history=0
+            salinfo=self.salinfo,
+            name=name,
+            sal_prefix=sal_prefix,
+            max_history=0,
+            filter_ackcmd=False,
         )
         producer = TopicProducer(topic=topic, kafka_info=self.kafka_info, log=self.log)
         self.topic_producers[topic.attr_name] = producer
