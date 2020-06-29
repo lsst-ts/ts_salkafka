@@ -101,7 +101,7 @@ async def run_salkafka_producer():
     log.addHandler(logging.StreamHandler())
     log.setLevel(args.loglevel)
 
-    semaphore_file = pathlib.Path("/tmp", "RUNNING")
+    semaphore_file = pathlib.Path("/tmp", "SALKAFKA_PRODUCER_RUNNING")
     if semaphore_file.exists():
         semaphore_file.unlink()
 
