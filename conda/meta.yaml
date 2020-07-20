@@ -30,5 +30,6 @@ requirements:
     - python
     - setuptools
     - setuptools_scm
+    - aiohttp
     - ts-salobj
     - ts-idl
