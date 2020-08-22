@@ -24,4 +24,4 @@ import asyncio
 
 from lsst.ts import salkafka
 
-asyncio.get_event_loop().run_until_complete(salkafka.run_salkafka_producer())
+asyncio.run(salkafka.ComponentProducerSet.amain())
