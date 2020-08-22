@@ -6,6 +6,25 @@
 Version History
 ###############
 
+v1.4.0
+======
+
+Changes:
+
+* Make SAL/Kafka producers shut down gracefully.
+* Update the pre-commit hook to block the commit if any code is not formatted with black.
+
+
+Requirements:
+
+* ts_salobj 5.16 or 6
+* ts_idl 1
+* IDL files for all CSCs you watch
+* aiohttp 3.5
+* aiokafka 0.5
+* confluent-kafka v1.1
+* kafkit 0.1
+
 v1.3.0
 ======
 
