@@ -101,6 +101,10 @@ class ComponentProducerSet:
                 for producer in self.producers:
                     producer.close()
 
+        self.log.info("Domain participant is closed; pausing for 10 seconds")
+        await asyncio.sleep(10)
+        self.log.info("Quitting")
+
     def signal_handler(self):
         self.wait_forever_task.cancel()
 
