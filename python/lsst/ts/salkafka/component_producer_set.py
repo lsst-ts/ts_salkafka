@@ -32,11 +32,6 @@ import signal
 from lsst.ts import salobj
 from lsst.ts import salkafka
 
-# Time to pause after closing the producers and salobj.Domain before exiting
-# (sec). 1 second appears to be too short. 10 seconds is long enough
-# that the process will be killed.
-EXIT_DELAY = 5
-
 
 class ComponentProducerSet:
     r"""A collection of one or more `ComponentProducer`\ s
@@ -106,9 +101,6 @@ class ComponentProducerSet:
                 for producer in self.producers:
                     await producer.close()
 
-        self.log.info(f"Pausing for {EXIT_DELAY} seconds "
-                      "to give OpenSplice threads a chance to finish.")
-        await asyncio.sleep(EXIT_DELAY)
         self.log.info("Done")
 
     def signal_handler(self):
