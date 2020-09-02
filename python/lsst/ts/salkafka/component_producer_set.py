@@ -26,6 +26,7 @@ __all__ = ["ComponentProducerSet"]
 import argparse
 import asyncio
 import logging
+import os
 import pathlib
 import signal
 
@@ -50,7 +51,12 @@ class ComponentProducerSet:
         self.log.addHandler(logging.StreamHandler())
         self.log.setLevel(args.loglevel)
 
-        self.semaphore_file = pathlib.Path("/tmp", "SALKAFKA_PRODUCER_RUNNING")
+        semaphore_filename = "SALKAFKA_PRODUCER_RUNNING"
+        suffix = os.environ.get("SALKAFKA_SEMAPHORE_SUFFIX")
+        if suffix is not None:
+            semaphore_filename += f"_{suffix.upper()}"
+
+        self.semaphore_file = pathlib.Path("/tmp", semaphore_filename)
         if self.semaphore_file.exists():
             self.semaphore_file.unlink()
 
@@ -100,6 +106,9 @@ class ComponentProducerSet:
                 self.log.info("Shutting down")
                 for producer in self.producers:
                     await producer.close()
+
+        if self.semaphore_file.exists():
+            self.semaphore_file.unlink()
 
         self.log.info("Done")
 
