@@ -52,8 +52,9 @@ class ComponentProducerSet:
         self.log.setLevel(args.loglevel)
 
         semaphore_filename = "SALKAFKA_PRODUCER_RUNNING"
-        if "SALKAFKA_SEMAPHORE_POSTFIX" in os.environ:
-            semaphore_filename += f"_{os.environ['SALKAFKA_SEMAPHORE_POSTFIX'].upper()}"
+        suffix = os.environ.get("SALKAFKA_SEMAPHORE_SUFFIX")
+        if suffix is not None:
+            semaphore_filename += f"_{suffix.upper()}"
 
         self.semaphore_file = pathlib.Path("/tmp", semaphore_filename)
         if self.semaphore_file.exists():
