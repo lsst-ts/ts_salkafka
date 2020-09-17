@@ -6,6 +6,27 @@
 Version History
 ###############
 
+v1.6.0
+======
+
+Changes:
+
+* Implement new feature that allow producer to be split into topics for individual components.
+  * Add integrity verification on the producer when running from a configuration file, if any topic is missing it is going to be added as a new topic set.
+* Fix setting up version on conda package.
+* Pin black version.
+* Fix upload command in Jenkinsfile.conda.
+
+Requirements:
+
+* ts_salobj 5.16 or 6
+* ts_idl 1
+* IDL files for all CSCs you watch
+* aiohttp 3.5
+* aiokafka 0.5
+* confluent-kafka v1.1
+* kafkit 0.1
+
 v1.5.0
 ======
 
@@ -175,4 +196,3 @@ Requirements:
 * aiokafka 0.5
 * confluent-kafka v1.1
 * kafkit 0.1
-

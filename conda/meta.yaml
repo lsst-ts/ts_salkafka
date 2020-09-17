@@ -1,7 +1,7 @@
 {% set data= load_setup_py_data() %}
 package:
   name: ts-salkafka
-  version: {{ environ.get('GIT_DESCRIBE_TAG', 'default')}}
+  version: {{ data.get('version') }}
 
 source:
   git_url: https://github.com/lsst-ts/ts_salkafka
@@ -17,7 +17,7 @@ test:
     - pytest-flake8
     - pytest-cov
     - asynctest
-    - black
+    - black == 19.10b0
 
 requirements:
   host:
@@ -31,5 +31,6 @@ requirements:
     - setuptools
     - setuptools_scm
     - aiohttp
+    - psutil
     - ts-salobj
     - ts-idl

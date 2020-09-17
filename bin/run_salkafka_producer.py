@@ -21,7 +21,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import sys
 
 from lsst.ts import salkafka
 
-asyncio.run(salkafka.ComponentProducerSet.amain())
+asyncio.run(salkafka.ComponentProducerSet.amain(sys.argv[1:]))

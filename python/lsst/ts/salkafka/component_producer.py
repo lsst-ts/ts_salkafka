@@ -38,9 +38,32 @@ class ComponentProducer:
         Name of SAL component, e.g. "ATDome".
     kafka_info : `KafkaInfo`
         Information and clients for using Kafka.
+    read_queue_len : `int` or `None`
+        Lenght of the DDS read queue. By default (`None`) fall back to using
+        `salobj.domain.DDS_READ_QUEUE_LEN`. Value must be larger or equal to
+        `salobj.domain.DDS_READ_QUEUE_LEN`.
+    add_ack : `bool`
+        Add ackcmd to the producer? (default = True).
+    commands : `list` of `str` or None
+        Commands to add to the producer. By default (`None`) add all commands.
+    events : `list` of `str` or None
+        Events to add to the producer. By default (`None`) add all events.
+    telemetry : `list` of `str` or None
+        Telemtry to add to the producer. By default (`None`) add all telemetry.
+
     """
 
-    def __init__(self, domain, name, kafka_info):
+    def __init__(
+        self,
+        domain,
+        name,
+        kafka_info,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
+        add_ack=True,
+        commands=None,
+        events=None,
+        telemetry=None,
+    ):
         self.domain = domain
         # index=0 means we get samples from all SAL indices of the component
         self.salinfo = salobj.SalInfo(domain=self.domain, name=name, index=0)
@@ -51,16 +74,43 @@ class ComponentProducer:
         """
 
         # Create a list of (basic topic name, SAL topic name prefix).
-        topic_name_prefixes = [("ackcmd", "")]
-        topic_name_prefixes += [
-            (cmd_name, "command_") for cmd_name in self.salinfo.command_names
-        ]
-        topic_name_prefixes += [
-            (evt_name, "logevent_") for evt_name in self.salinfo.event_names
-        ]
-        topic_name_prefixes += [
-            (tel_name, "") for tel_name in self.salinfo.telemetry_names
-        ]
+        topic_name_prefixes = []
+        if add_ack:
+            topic_name_prefixes += [("ackcmd", "")]
+
+        if commands is None:
+            topic_name_prefixes += [
+                (cmd_name, "command_") for cmd_name in self.salinfo.command_names
+            ]
+        else:
+            topic_name_prefixes += [
+                (cmd_name, "command_")
+                for cmd_name in commands
+                if cmd_name in self.salinfo.command_names
+            ]
+
+        if events is None:
+            topic_name_prefixes += [
+                (evt_name, "logevent_") for evt_name in self.salinfo.event_names
+            ]
+        else:
+            topic_name_prefixes += [
+                (evt_name, "logevent_")
+                for evt_name in events
+                if evt_name in self.salinfo.event_names
+            ]
+
+        if telemetry is None:
+            topic_name_prefixes += [
+                (tel_name, "") for tel_name in self.salinfo.telemetry_names
+            ]
+        else:
+            topic_name_prefixes += [
+                (tel_name, "")
+                for tel_name in telemetry
+                if tel_name in self.salinfo.telemetry_names
+            ]
+
         kafka_topic_names = [
             f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
             for name, prefix in topic_name_prefixes
@@ -73,14 +123,17 @@ class ComponentProducer:
 
         self.log.info(f"Creating SAL/Kafka topic producers for {self.salinfo.name}.")
         try:
+
             for topic_name, sal_prefix in topic_name_prefixes:
-                self._make_topic(name=topic_name, sal_prefix=sal_prefix)
+                self._make_topic(
+                    name=topic_name, sal_prefix=sal_prefix, queue_len=queue_len,
+                )
             self.start_task = asyncio.ensure_future(self.start())
         except Exception:
             asyncio.ensure_future(self.salinfo.close())
             raise
 
-    def _make_topic(self, name, sal_prefix):
+    def _make_topic(self, name, sal_prefix, queue_len=salobj.topics.DEFAULT_QUEUE_LEN):
         r"""Make a salobj read topic and associated topic producer.
 
         Parameters
@@ -89,12 +142,17 @@ class ComponentProducer:
             Topic name, without a "command\_" or "logevent\_" prefix.
         sal_prefix : `str`
             SAL topic prefix: one of "command\_", "logevent\_" or ""
+        queue_len : `int`, optional
+            Lenght of the read queue (default to
+            `salobj.topics.DEFAULT_QUEUE_LEN`).
+
         """
         topic = salobj.topics.ReadTopic(
             salinfo=self.salinfo,
             name=name,
             sal_prefix=sal_prefix,
             max_history=0,
+            queue_len=queue_len,
             filter_ackcmd=False,
         )
         producer = TopicProducer(topic=topic, kafka_info=self.kafka_info, log=self.log)
