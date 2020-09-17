@@ -22,13 +22,17 @@
 
 __all__ = ["ComponentProducerSet"]
 
-
 import argparse
 import asyncio
+import functools
+import jsonschema
 import logging
 import os
 import pathlib
 import signal
+import yaml
+
+import concurrent.futures
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
@@ -45,7 +49,15 @@ class ComponentProducerSet:
         from `make_argument_parser`.
     """
 
-    def __init__(self, args):
+    def __init__(
+        self,
+        args,
+        component=None,
+        add_ack=None,
+        commands=None,
+        events=None,
+        telemetry=None,
+    ):
 
         self.log = logging.getLogger()
         self.log.addHandler(logging.StreamHandler())
@@ -65,9 +77,26 @@ class ComponentProducerSet:
         # A task that ends when the service is interrupted
         self.wait_forever_task = asyncio.Future()
 
-        self.done_task = asyncio.create_task(self.run(args))
+        self.done_task = asyncio.get_event_loop().create_task(
+            self.run(
+                args,
+                component=component,
+                add_ack=add_ack,
+                commands=commands,
+                events=events,
+                telemetry=telemetry,
+            )
+        )
 
-    async def run(self, args):
+    async def run(
+        self,
+        args,
+        component=None,
+        add_ack=False,
+        commands=None,
+        events=None,
+        telemetry=None,
+    ):
         """Create and run the component producers.
         """
         async with salobj.Domain() as domain, salkafka.KafkaInfo(
@@ -81,12 +110,33 @@ class ComponentProducerSet:
             self.domain = domain
             self.kafka_info = kafka_info
 
-            self.log.info("Creating producers")
             self.producers = []
-            for name in args.components:
+            if component is None:
+                self.log.info("Creating producers")
+                for name in args.components:
+                    self.producers.append(
+                        salkafka.ComponentProducer(
+                            domain=domain, name=name, kafka_info=kafka_info
+                        )
+                    )
+            else:
+                self.log.info(
+                    f"Creating producer for {component}: "
+                    f"[add_ack: {add_ack}] "
+                    f"[commands: {commands}] "
+                    f"[events: {events}] "
+                    f"[telemetry: {telemetry}] "
+                )
+
                 self.producers.append(
                     salkafka.ComponentProducer(
-                        domain=domain, name=name, kafka_info=kafka_info
+                        domain=domain,
+                        name=component,
+                        kafka_info=kafka_info,
+                        add_ack=add_ack,
+                        commands=commands,
+                        events=events,
+                        telemetry=telemetry,
                     )
                 )
 
@@ -125,8 +175,48 @@ class ComponentProducerSet:
         if args.wait_for_ack != "all":
             args.wait_for_ack = int(args.wait_for_ack)
 
-        producer_set = ComponentProducerSet(args)
-        await producer_set.done_task
+        if args.file is None:
+            producer_set = ComponentProducerSet(args)
+            await producer_set.done_task
+        else:
+            component_info = cls.validate(args.file)
+            loop = asyncio.get_running_loop()
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=len(component_info["topic_sets"]) + 1
+            ) as pool:
+                producer_set = []
+                for topic_set in component_info["topic_sets"]:
+                    producer_set.append(
+                        loop.run_in_executor(
+                            pool,
+                            functools.partial(
+                                cls.create_process,
+                                args=args,
+                                component=component_info["component"],
+                                add_ack=topic_set.get("add_ack", False),
+                                commands=topic_set.get("commands", []),
+                                events=topic_set.get("events", []),
+                                telemetry=topic_set.get("telemetry", []),
+                            ),
+                        )
+                    )
+                await asyncio.gather(*producer_set)
+
+    @classmethod
+    def create_process(cls, args, component, add_ack, commands, events, telemetry):
+        loop = asyncio.new_event_loop()
+
+        asyncio.set_event_loop(loop)
+
+        producer_set = ComponentProducerSet(
+            args,
+            component=component,
+            add_ack=add_ack,
+            commands=commands,
+            events=events,
+            telemetry=telemetry,
+        )
+        loop.run_until_complete(producer_set.done_task)
 
     @staticmethod
     def make_argument_parser():
@@ -136,7 +226,7 @@ class ComponentProducerSet:
             description="Send DDS messages to Kafka for one or more SAL components"
         )
         parser.add_argument(
-            "components", nargs="+", help='Names of SAL components, e.g. "Test"'
+            "components", nargs="*", help='Names of SAL components, e.g. "Test"',
         )
         parser.add_argument(
             "--broker",
@@ -180,4 +270,105 @@ class ComponentProducerSet:
             "1: wait for ack from one Kafka broker (default). "
             "all: wait for ack from all Kafka brokers.",
         )
+        parser.add_argument(
+            "--file",
+            dest="file",
+            required=False,
+            help="Input file with component configuration in yaml format. "
+            "This allows users to specify, a component and individual topics "
+            "for the producers.",
+        )
+        parser.add_argument(
+            "--show-schema",
+            dest="show_schema",
+            required=False,
+            action="store_true",
+            help="Show schema for the input file and exit.",
+        )
+        parser.add_argument(
+            "--validate",
+            dest="validate",
+            required=False,
+            action="store_true",
+            help="Validate input file and exit.",
+        )
+
         return parser
+
+    @staticmethod
+    def validate(filename):
+        """Load and validate input file.
+
+        Parameters
+        ----------
+        filename : `str`
+            Name of the file to load. Must be yaml file.
+
+        Returns
+        -------
+        components_info : `dict`
+            Dictionary with parsed data.
+
+        """
+        schema = yaml.safe_load(
+            """
+        $schema: http://json-schema.org/draft-07/schema#
+        $id: https://github.com/lsst-ts/ts_salkafka/salkafka.yaml
+        description: Configuration for the salkafka producer.
+        type: object
+        additionalProperties: false
+        properties:
+          component:
+            description: Name of SAL components, e.g. "Test".
+            type: string
+          topic_sets:
+            type: array
+            items:
+              type: object
+              properties:
+                add_ack:
+                  description: Add command acknowledgements?
+                  type: boolean
+                commands:
+                  description: >-
+                    List of commands to add to producer. To add all set it to
+                    "*".
+                  anyOf:
+                    - type: array
+                      items:
+                        type: string
+                    - type: string
+                events:
+                  description: >-
+                    List of events to add to producer. To add all set it to
+                    "*".
+                  anyOf:
+                    - type: array
+                      items:
+                        type: string
+                    - type: string
+                telemetry:
+                  description: >-
+                    List of telemtry to add to producer. To add all set it to
+                    "*".
+                  anyOf:
+                    - type: array
+                      items:
+                        type: string
+                    - type: string
+        required:
+          - component
+        """
+        )
+        # First step is to validate the input schema.
+        validator = jsonschema.Draft7Validator(schema)
+
+        with open(filename) as fp:
+            components_info = yaml.safe_load(fp)
+
+        validator.validate(components_info)
+
+        # TODO: If file schema is valid, now we need to parse the content and
+        # organize the set of producers.
+
+        return components_info
