@@ -34,6 +34,7 @@ import yaml
 
 import concurrent.futures
 
+from lsst.ts import idl
 from lsst.ts import salobj
 from lsst.ts import salkafka
 
@@ -52,6 +53,7 @@ class ComponentProducerSet:
     def __init__(
         self,
         args,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
         component=None,
         add_ack=None,
         commands=None,
@@ -80,6 +82,7 @@ class ComponentProducerSet:
         self.done_task = asyncio.get_event_loop().create_task(
             self.run(
                 args,
+                queue_len=queue_len,
                 component=component,
                 add_ack=add_ack,
                 commands=commands,
@@ -91,6 +94,7 @@ class ComponentProducerSet:
     async def run(
         self,
         args,
+        queue_len,
         component=None,
         add_ack=False,
         commands=None,
@@ -116,7 +120,10 @@ class ComponentProducerSet:
                 for name in args.components:
                     self.producers.append(
                         salkafka.ComponentProducer(
-                            domain=domain, name=name, kafka_info=kafka_info
+                            domain=domain,
+                            name=name,
+                            kafka_info=kafka_info,
+                            queue_len=queue_len,
                         )
                     )
             else:
@@ -133,6 +140,7 @@ class ComponentProducerSet:
                         domain=domain,
                         name=component,
                         kafka_info=kafka_info,
+                        queue_len=queue_len,
                         add_ack=add_ack,
                         commands=commands,
                         events=events,
@@ -166,12 +174,12 @@ class ComponentProducerSet:
         self.wait_forever_task.cancel()
 
     @classmethod
-    async def amain(cls):
+    async def amain(cls, argv):
         """Parse command line arguments, then create and run a
         `ComponentProducerSet`.
         """
         parser = cls.make_argument_parser()
-        args = parser.parse_args()
+        args = parser.parse_args(argv)
         if args.wait_for_ack != "all":
             args.wait_for_ack = int(args.wait_for_ack)
 
@@ -192,6 +200,9 @@ class ComponentProducerSet:
                             functools.partial(
                                 cls.create_process,
                                 args=args,
+                                queue_len=component_info.get(
+                                    "queue_len", salobj.topics.DEFAULT_QUEUE_LEN
+                                ),
                                 component=component_info["component"],
                                 add_ack=topic_set.get("add_ack", False),
                                 commands=topic_set.get("commands", []),
@@ -203,13 +214,16 @@ class ComponentProducerSet:
                 await asyncio.gather(*producer_set)
 
     @classmethod
-    def create_process(cls, args, component, add_ack, commands, events, telemetry):
+    def create_process(
+        cls, args, queue_len, component, add_ack, commands, events, telemetry
+    ):
         loop = asyncio.new_event_loop()
 
         asyncio.set_event_loop(loop)
 
         producer_set = ComponentProducerSet(
             args,
+            queue_len=queue_len,
             component=component,
             add_ack=add_ack,
             commands=commands,
@@ -310,8 +324,70 @@ class ComponentProducerSet:
             Dictionary with parsed data.
 
         """
-        schema = yaml.safe_load(
-            """
+        # First step is to validate the input schema.
+        validator = jsonschema.Draft7Validator(ComponentProducerSet.schema())
+
+        with open(filename) as fp:
+            components_info = yaml.safe_load(fp)
+
+        validator.validate(components_info)
+
+        # Make sure there is no topic left behind. Create a set with all the
+        # topics and remove them as they are added. If something is left in the
+        # control set at the end, it will be added to the set.
+        control_set = {"add_ack": True, "commands": [], "events": [], "telemetry": []}
+
+        component = components_info["component"]
+        topic_metadata = salobj.parse_idl(
+            component, idl.get_idl_dir() / f"sal_revCoded_{component}.idl"
+        )
+        for topic in topic_metadata.topic_info:
+            if topic.startswith("command_"):
+                control_set["commands"].append(topic[8:])
+            elif topic.startswith("logevent_"):
+                control_set["events"].append(topic[9:])
+            elif topic == "ackcmd":
+                pass
+            else:
+                control_set["telemetry"].append(topic)
+
+        if len(control_set["commands"]) == 0:
+            control_set["add_ack"] = False
+
+        ack_added = False
+        for topic_set in components_info["topic_sets"]:
+            if topic_set.get("add_ack", False) and not ack_added:
+                ack_added = True
+                control_set["add_ack"] = False
+            elif topic_set.get("add_ack", False) and ack_added:
+                raise RuntimeError("Ackcmd added multiple times.")
+
+            for topic_type in ["commands", "events", "telemetry"]:
+                for topic_name in topic_set.get(topic_type, []):
+                    if topic_name in control_set[topic_type]:
+                        control_set[topic_type].remove(topic_name)
+                    elif topic_name not in control_set[topic_type]:
+                        raise RuntimeError(
+                            f"Topic {topic_name} unrecognized or already included in {topic_type}."
+                        )
+
+        if control_set["add_ack"] or any(
+            [
+                len(control_set[topic_type]) > 0
+                for topic_type in ["commands", "events", "telemetry"]
+            ]
+        ):
+            print(
+                "Some topics where not included in the list. Adding them in post process."
+            )
+            components_info["topic_sets"].append(control_set)
+
+        return components_info
+
+    @staticmethod
+    def schema():
+        return yaml.safe_load(
+            f"""
         $schema: http://json-schema.org/draft-07/schema#
         $id: https://github.com/lsst-ts/ts_salkafka/salkafka.yaml
         description: Configuration for the salkafka producer.
@@ -321,10 +397,15 @@ class ComponentProducerSet:
           component:
             description: Name of SAL components, e.g. "Test".
             type: string
+          queue_len:
+            description: Length of the python queue on the topic readers.
+            type: integer
+            exclusiveMinimum: {salobj.topics.DEFAULT_QUEUE_LEN}
           topic_sets:
             type: array
             items:
               type: object
+              additionalProperties: false
               properties:
                 add_ack:
                   description: Add command acknowledgements?
@@ -360,15 +441,3 @@ class ComponentProducerSet:
           - component
         """
         )
-        # First step is to validate the input schema.
-        validator = jsonschema.Draft7Validator(schema)
-
-        with open(filename) as fp:
-            components_info = yaml.safe_load(fp)
-
-        validator.validate(components_info)
-
-        # TODO: If file schema is valid, now we need to parse the content and
-        # organize the set of producers.
-
-        return components_info
