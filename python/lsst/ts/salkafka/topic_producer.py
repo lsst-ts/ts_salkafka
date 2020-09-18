@@ -52,6 +52,8 @@ class TopicProducer:
         self.send_and_wait_task.set_result(0)
         self.max_queue_size = max_queue_size
         self.discarded_samples = 0
+        self.discard_timer_task = asyncio.Future()
+        self.discard_timer_task.set_result(0)
 
         self.start_task = asyncio.ensure_future(self.start())
 
@@ -81,21 +83,26 @@ class TopicProducer:
         """
 
         if (
-            not self.send_and_wait_task.done()
-            or len(self.topic._data_queue) > self.max_queue_size
+            len(self.topic._data_queue) > self.max_queue_size
+            and self.discard_timer_task.done()
         ):
+            self.log.info(
+                f"{self.topic.name} python thread filling up. Starting 1s data-write moratory."
+            )
             self.discarded_samples += 1
-        else:
+            self.discard_timer_task = asyncio.create_task(asyncio.sleep(1))
+
+        elif self.discard_timer_task.done():
             avro_data = data.get_vars()
             avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
 
-            self.send_and_wait_tasks = asyncio.create_task(
-                self.kafka_producer.send_and_wait(
-                    self.avro_schema["name"], value=avro_data
-                )
+            await self.kafka_producer.send_and_wait(
+                self.avro_schema["name"], value=avro_data
             )
             if self.discarded_samples > 0:
                 self.log.info(
                     f"{self.topic.name}: Discarded {self.discarded_samples} samples."
                 )
                 self.discarded_samples = 0
+        else:
+            self.discarded_samples += 1
