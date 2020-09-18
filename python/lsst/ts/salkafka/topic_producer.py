@@ -41,7 +41,7 @@ class TopicProducer:
         Parent log.
     """
 
-    def __init__(self, topic, kafka_info, log, max_queue=90):
+    def __init__(self, topic, kafka_info, log, max_queue=10):
         self.topic = topic
         self.kafka_info = kafka_info
         self.log = log.getChild(topic.sal_name)
@@ -67,7 +67,9 @@ class TopicProducer:
         self.clear_warning_level = int(max_queue / 4)
 
         # When to resume sending messages
-        self.resume_level = max(self.clear_warning_level - 1, 5)
+        self.resume_level = max(self.clear_warning_level - 1, 2)
+
+        self.discarded_samples = 0
 
     async def close(self):
         """Close the Kafka producer.
@@ -102,10 +104,13 @@ class TopicProducer:
 
             list_length = len(self.send_and_wait_tasks)
 
+            # store current value of flag
+            queue_full = self.queue_full
+
             self.queue_full = (
                 list_length > self.full_level
                 if not self.queue_full
-                else list_length < self.resume_level
+                else list_length > self.resume_level
             )
 
             if not self.queue_full:
@@ -123,14 +128,27 @@ class TopicProducer:
                 if list_length > self.warning_level and self.print_filling_up_warning:
                     self.print_filling_up_warning = False
                     self.log.warning(
-                        f"Send and wait list filling up: {list_length}/{self.full_level} "
+                        f"{self.topic.name}: Send and wait list filling up: {list_length}/{self.full_level} "
                     )
                 elif list_length < self.clear_warning_level:
                     self.print_filling_up_warning = True
                     self.print_queue_full_warning = True
 
+                # This means we just transitioned from not writting to writting
+                # data.
+                if queue_full:
+                    self.log.info(
+                        f"{self.topic.name}: Resume writting data: {data.private_seqNum}. "
+                        f"Discarded {self.discarded_samples} samples."
+                    )
+                    self.discarded_samples = 0
+
             elif self.print_queue_full_warning:
                 self.print_queue_full_warning = False
+                self.discarded_samples += 1
                 self.log.warning(
-                    f"Send and wait list full. Discarding samples. Starting at {data.private_seqNum}."
+                    f"{self.topic.name}: Send and wait list full. Discarding samples. "
+                    f"Starting at {data.private_seqNum}."
                 )
+            else:
+                self.discarded_samples += 1

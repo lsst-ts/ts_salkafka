@@ -31,5 +31,6 @@ requirements:
     - setuptools
     - setuptools_scm
     - aiohttp
+    - psutil
     - ts-salobj
     - ts-idl
