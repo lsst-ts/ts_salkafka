@@ -29,7 +29,9 @@ import jsonschema
 import logging
 import os
 import pathlib
+import psutil
 import signal
+import traceback
 import yaml
 
 import concurrent.futures
@@ -180,6 +182,11 @@ class ComponentProducerSet:
         """
         parser = cls.make_argument_parser()
         args = parser.parse_args(argv)
+
+        if args.show_schema:
+            print(cls.schema())
+            return 0
+
         if args.wait_for_ack != "all":
             args.wait_for_ack = int(args.wait_for_ack)
 
@@ -189,6 +196,13 @@ class ComponentProducerSet:
         else:
             component_info = cls.validate(args.file)
             loop = asyncio.get_running_loop()
+            # task to wait until process is terminated
+            wait_forever_task = asyncio.Future()
+
+            # Add handle for process termination signals
+            for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+                loop.add_signal_handler(s, wait_forever_task.cancel)
+
             with concurrent.futures.ProcessPoolExecutor(
                 max_workers=len(component_info["topic_sets"]) + 1
             ) as pool:
@@ -211,7 +225,45 @@ class ComponentProducerSet:
                             ),
                         )
                     )
-                await asyncio.gather(*producer_set)
+
+                # In case one of the parallel producers fails, need to cancel
+                # all the others and exit. This will process any task that
+                # finished and then, proceed to cancel the remaining.
+                main_tasks = [wait_forever_task] + producer_set
+
+                for completed in asyncio.as_completed(main_tasks):
+                    try:
+                        await completed
+                    except asyncio.CancelledError:
+                        print("Terminating process.")
+                    except Exception:
+                        traceback.print_exc()
+                    finally:
+                        break
+
+                # If we get here, it means that it either received a term
+                # signal or one of the child processes failed.
+                # Now it need to send each remaining child process a TERM
+                # signal as well, before exiting.
+                # Gather information about remaining child processes and send
+                # signal.
+
+                # This is the parent process id.
+                parent = psutil.Process(os.getpid())
+
+                # Child process ids.
+                children = parent.children(recursive=True)
+
+                # Send SIGTERM regardless of what signal was received. This
+                # is the safest signal.
+                for process in children:
+                    print(f"Killing child process {process}.")
+                    process.send_signal(signal.SIGTERM)
+
+                # Wait for processes to terminate, skip any exception
+                print("Waiting for child processes to finish.")
+                await asyncio.gather(*producer_set, return_exceptions=True)
+                print("Done")
 
     @classmethod
     def create_process(
