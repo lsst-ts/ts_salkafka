@@ -41,35 +41,19 @@ class TopicProducer:
         Parent log.
     """
 
-    def __init__(self, topic, kafka_info, log, max_queue=10):
+    def __init__(self, topic, kafka_info, log, max_queue_size=10):
         self.topic = topic
         self.kafka_info = kafka_info
         self.log = log.getChild(topic.sal_name)
         self.kafka_producer = None
         self.avro_schema = make_avro_schema(topic)
 
-        self.send_queue_lock = asyncio.Lock()
+        self.send_and_wait_task = asyncio.Future()
+        self.send_and_wait_task.set_result(0)
+        self.max_queue_size = max_queue_size
+        self.discarded_samples = 0
 
         self.start_task = asyncio.ensure_future(self.start())
-        self.send_and_wait_tasks = []
-
-        self.print_filling_up_warning = True
-        self.print_queue_full_warning = True
-        self.queue_full = False
-
-        # When to star dropping messages
-        self.full_level = max_queue
-
-        # When to warn that send queue is filling
-        self.warning_level = int(max_queue / 2)
-
-        # When to clear warning
-        self.clear_warning_level = int(max_queue / 4)
-
-        # When to resume sending messages
-        self.resume_level = max(self.clear_warning_level - 1, 2)
-
-        self.discarded_samples = 0
 
     async def close(self):
         """Close the Kafka producer.
@@ -96,59 +80,22 @@ class TopicProducer:
             DDS sample.
         """
 
-        async with self.send_queue_lock:
+        if (
+            not self.send_and_wait_task.done()
+            or len(self.topic._data_queue) > self.max_queue_size
+        ):
+            self.discarded_samples += 1
+        else:
+            avro_data = data.get_vars()
+            avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
 
-            self.send_and_wait_tasks[:] = [
-                task for task in self.send_and_wait_tasks if not task.done()
-            ]
-
-            list_length = len(self.send_and_wait_tasks)
-
-            # store current value of flag
-            queue_full = self.queue_full
-
-            self.queue_full = (
-                list_length > self.full_level
-                if not self.queue_full
-                else list_length > self.resume_level
+            self.send_and_wait_tasks = asyncio.create_task(
+                self.kafka_producer.send_and_wait(
+                    self.avro_schema["name"], value=avro_data
+                )
             )
-
-            if not self.queue_full:
-
-                avro_data = data.get_vars()
-                avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
-
-                self.send_and_wait_tasks.append(
-                    asyncio.create_task(
-                        self.kafka_producer.send_and_wait(
-                            self.avro_schema["name"], value=avro_data
-                        )
-                    )
+            if self.discarded_samples > 0:
+                self.log.info(
+                    f"{self.topic.name}: Discarded {self.discarded_samples} samples."
                 )
-                if list_length > self.warning_level and self.print_filling_up_warning:
-                    self.print_filling_up_warning = False
-                    self.log.warning(
-                        f"{self.topic.name}: Send and wait list filling up: {list_length}/{self.full_level} "
-                    )
-                elif list_length < self.clear_warning_level:
-                    self.print_filling_up_warning = True
-                    self.print_queue_full_warning = True
-
-                # This means we just transitioned from not writting to writting
-                # data.
-                if queue_full:
-                    self.log.info(
-                        f"{self.topic.name}: Resume writting data: {data.private_seqNum}. "
-                        f"Discarded {self.discarded_samples} samples."
-                    )
-                    self.discarded_samples = 0
-
-            elif self.print_queue_full_warning:
-                self.print_queue_full_warning = False
-                self.discarded_samples += 1
-                self.log.warning(
-                    f"{self.topic.name}: Send and wait list full. Discarding samples. "
-                    f"Starting at {data.private_seqNum}."
-                )
-            else:
-                self.discarded_samples += 1
+                self.discarded_samples = 0
