@@ -102,53 +102,24 @@ class TopicProducerTestCase(asynctest.TestCase):
             evt_array_data = self.csc.make_random_evt_arrays()
             self.csc.evt_arrays.put(evt_array_data)
             for iread in range(10):
-                if len(producer.kafka_producer.sent_data) > isample:
+                if producer.n_data_sent > isample:
                     break
                 await asyncio.sleep(0.01)
             else:
                 self.fail("Data not seen in time")
-            self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
-            (
-                kafka_topic_name,
-                sent_value,
-                serialized_value,
-            ) = producer.kafka_producer.sent_data[-1]
-            self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
-            self.assertIsInstance(serialized_value, bytes)
-            for key, value in evt_array_data.get_vars().items():
-                if key == "private_rcvStamp":
-                    # not set in evt_array_data but set in received
-                    # sample and thus in ``sent_value``
-                    continue
-                if isinstance(value, np.ndarray):
-                    np.testing.assert_array_equal(sent_value[key], value)
-                else:
-                    self.assertEqual(sent_value[key], value)
+            self.assertEqual(producer.n_data_sent, isample + 1)
 
         producer = self.component_producer.topic_producers["evt_scalars"]
         for isample in range(3):
             evt_scalar_data = self.csc.make_random_evt_scalars()
             self.csc.evt_scalars.put(evt_scalar_data)
             for iread in range(10):
-                if len(producer.kafka_producer.sent_data) > isample:
+                if producer.n_data_sent > isample:
                     break
                 await asyncio.sleep(0.01)
             else:
                 self.fail("Data not seen in time")
-            self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
-            (
-                kafka_topic_name,
-                sent_value,
-                serialized_value,
-            ) = producer.kafka_producer.sent_data[-1]
-            self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_scalars")
-            self.assertIsInstance(serialized_value, bytes)
-            for key, value in evt_scalar_data.get_vars().items():
-                if key == "private_rcvStamp":
-                    # not set in evt_scalar_data but set in received
-                    # sample and thus in ``sent_value``
-                    continue
-                self.assertEqual(sent_value[key], value)
+            self.assertEqual(producer.n_data_sent, isample + 1)
 
 
 if __name__ == "__main__":
