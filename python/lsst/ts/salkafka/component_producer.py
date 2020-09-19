@@ -57,7 +57,12 @@ class ComponentProducer:
         self,
         domain,
         name,
-        kafka_info,
+        log,
+        broker_url,
+        registry_url,
+        partitions,
+        replication_factor,
+        wait_for_ack,
         queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
         add_ack=True,
         commands=None,
@@ -67,8 +72,7 @@ class ComponentProducer:
         self.domain = domain
         # index=0 means we get samples from all SAL indices of the component
         self.salinfo = salobj.SalInfo(domain=self.domain, name=name, index=0)
-        self.kafka_info = kafka_info
-        self.log = kafka_info.log.getChild(name)
+        self.log = log.getChild(name)
         self.topic_producers = dict()
         """Dict of topic attr_name: TopicProducer.
         """
@@ -111,29 +115,46 @@ class ComponentProducer:
                 if tel_name in self.salinfo.telemetry_names
             ]
 
-        kafka_topic_names = [
-            f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
-            for name, prefix in topic_name_prefixes
-        ]
-
-        self.log.info(
-            f"Creating Kafka topics for {self.salinfo.name} if not already present."
-        )
-        self.kafka_info.make_kafka_topics(kafka_topic_names)
+        # kafka_topic_names = [
+        #     f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
+        #     for name, prefix in topic_name_prefixes
+        # ]
+        #
+        # self.log.info(
+        #     f"Creating Kafka topics for {self.salinfo.name} if not already present."
+        # )
+        # self.kafka_info.make_kafka_topics(kafka_topic_names)
 
         self.log.info(f"Creating SAL/Kafka topic producers for {self.salinfo.name}.")
         try:
 
             for topic_name, sal_prefix in topic_name_prefixes:
                 self._make_topic(
-                    name=topic_name, sal_prefix=sal_prefix, queue_len=queue_len,
+                    name=topic_name,
+                    sal_prefix=sal_prefix,
+                    queue_len=queue_len,
+                    broker_url=broker_url,
+                    registry_url=registry_url,
+                    partitions=partitions,
+                    replication_factor=replication_factor,
+                    wait_for_ack=wait_for_ack,
                 )
             self.start_task = asyncio.ensure_future(self.start())
         except Exception:
             asyncio.ensure_future(self.salinfo.close())
             raise
 
-    def _make_topic(self, name, sal_prefix, queue_len=salobj.topics.DEFAULT_QUEUE_LEN):
+    def _make_topic(
+        self,
+        name,
+        sal_prefix,
+        broker_url,
+        registry_url,
+        partitions,
+        replication_factor,
+        wait_for_ack,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
+    ):
         r"""Make a salobj read topic and associated topic producer.
 
         Parameters
@@ -155,7 +176,18 @@ class ComponentProducer:
             queue_len=queue_len,
             filter_ackcmd=False,
         )
-        producer = TopicProducer(topic=topic, kafka_info=self.kafka_info, log=self.log)
+        producer = TopicProducer(
+            component=self.salinfo.name,
+            prefix=sal_prefix,
+            name=name,
+            topic=topic,
+            log=self.log,
+            broker_url=broker_url,
+            registry_url=registry_url,
+            partitions=partitions,
+            replication_factor=replication_factor,
+            wait_for_ack=wait_for_ack,
+        )
         self.topic_producers[topic.attr_name] = producer
 
     async def start(self):

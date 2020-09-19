@@ -61,7 +61,9 @@ class TopicProducerTestCase(asynctest.TestCase):
         replication_factor = 3
         wait_for_ack = 1
 
-        self.kafka_info = salkafka.KafkaInfo(
+        self.component_producer = salkafka.ComponentProducer(
+            domain=self.csc.domain,
+            name="Test",
             broker_url=broker_url,
             registry_url=registry_url,
             partitions=partitions,
@@ -69,23 +71,16 @@ class TopicProducerTestCase(asynctest.TestCase):
             wait_for_ack=wait_for_ack,
             log=log,
         )
-        self.component_producer = salkafka.ComponentProducer(
-            domain=self.csc.domain, name="Test", kafka_info=self.kafka_info
-        )
 
         await asyncio.gather(
             self.component_producer.start_task,
-            self.kafka_info.start_task,
             self.remote.start_task,
             self.csc.start_task,
         )
 
     async def tearDown(self):
         await asyncio.gather(
-            self.component_producer.close(),
-            self.kafka_info.close(),
-            self.remote.close(),
-            self.csc.close(),
+            self.component_producer.close(), self.remote.close(), self.csc.close(),
         )
 
     async def test_basics(self):

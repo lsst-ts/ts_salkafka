@@ -105,17 +105,8 @@ class ComponentProducerSet:
     ):
         """Create and run the component producers.
         """
-        async with salobj.Domain() as domain, salkafka.KafkaInfo(
-            broker_url=args.broker_url,
-            registry_url=args.registry_url,
-            partitions=args.partitions,
-            replication_factor=args.replication_factor,
-            wait_for_ack=args.wait_for_ack,
-            log=self.log,
-        ) as kafka_info:
+        async with salobj.Domain() as domain:
             self.domain = domain
-            self.kafka_info = kafka_info
-
             self.producers = []
             if component is None:
                 self.log.info("Creating producers")
@@ -124,8 +115,13 @@ class ComponentProducerSet:
                         salkafka.ComponentProducer(
                             domain=domain,
                             name=name,
-                            kafka_info=kafka_info,
+                            log=self.log,
                             queue_len=queue_len,
+                            broker_url=args.broker_url,
+                            registry_url=args.registry_url,
+                            partitions=args.partitions,
+                            replication_factor=args.replication_factor,
+                            wait_for_ack=args.wait_for_ack,
                         )
                     )
             else:
@@ -141,7 +137,12 @@ class ComponentProducerSet:
                     salkafka.ComponentProducer(
                         domain=domain,
                         name=component,
-                        kafka_info=kafka_info,
+                        log=self.log,
+                        broker_url=args.broker_url,
+                        registry_url=args.registry_url,
+                        partitions=args.partitions,
+                        replication_factor=args.replication_factor,
+                        wait_for_ack=args.wait_for_ack,
                         queue_len=queue_len,
                         add_ack=add_ack,
                         commands=commands,

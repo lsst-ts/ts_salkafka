@@ -34,6 +34,10 @@ from .make_avro_schema import make_avro_schema
 
 def make_kafka_producer(
     queue,
+    component,
+    prefix,
+    name,
+    topic,
     broker_url,
     registry_url,
     partitions,
@@ -52,6 +56,11 @@ def make_kafka_producer(
         wait_for_ack=wait_for_ack,
         log=log,
     )
+
+    log.info(
+        f"Creating Kafka topic lsst.sal.{component}.{prefix}{name} if not already present."
+    )
+    kafka_info.make_kafka_topics([f"lsst.sal.{component}.{prefix}{name}"])
 
     asyncio.set_event_loop(asyncio.new_event_loop())
 
@@ -81,9 +90,21 @@ class TopicProducer:
         Parent log.
     """
 
-    def __init__(self, topic, kafka_info, log, max_queue=60):
+    def __init__(
+        self,
+        component,
+        prefix,
+        name,
+        topic,
+        log,
+        broker_url,
+        registry_url,
+        partitions,
+        replication_factor,
+        wait_for_ack,
+        max_queue=1000,
+    ):
         self.topic = topic
-        self.kafka_info = kafka_info
         self.log = log.getChild(topic.sal_name)
 
         self.avro_schema = make_avro_schema(topic)
@@ -94,11 +115,15 @@ class TopicProducer:
             daemon=True,
             args=(
                 self._data_queue,
-                kafka_info.broker_url,
-                kafka_info.registry_url,
-                kafka_info.partitions,
-                kafka_info.replication_factor,
-                kafka_info.wait_for_ack,
+                component,
+                prefix,
+                name,
+                topic,
+                broker_url,
+                registry_url,
+                partitions,
+                replication_factor,
+                wait_for_ack,
                 self.avro_schema,
             ),
         )
@@ -168,7 +193,7 @@ class TopicProducer:
             avro_data = data.get_vars()
             avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
 
-            self._data_queue.put(avro_data)
+            self._data_queue.put_nowait(avro_data)
             self.last_data_sent = avro_data
             self.n_data_sent += 1
 

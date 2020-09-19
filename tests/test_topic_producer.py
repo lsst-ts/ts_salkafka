@@ -45,15 +45,11 @@ class TopicProducerTestCase(asynctest.TestCase):
         salobj.set_random_lsst_dds_domain()
         self.csc = None
         self.remote = None
-        self.kafka_info = None
         self.producer = None
 
     async def tearDown(self):
         await asyncio.gather(
-            self.topic_producer.close(),
-            self.kafka_info.close(),
-            self.read_salinfo.close(),
-            self.csc.close(),
+            self.topic_producer.close(), self.read_salinfo.close(), self.csc.close(),
         )
 
     async def make_producer(self, topic_name, sal_prefix):
@@ -82,20 +78,20 @@ class TopicProducerTestCase(asynctest.TestCase):
         replication_factor = 3
         wait_for_ack = 1
 
-        self.kafka_info = salkafka.KafkaInfo(
+        self.topic_producer = salkafka.TopicProducer(
+            component=self.read_salinfo.name,
+            prefix=sal_prefix,
+            name=topic_name,
+            topic=read_topic,
+            log=log,
             broker_url=broker_url,
             registry_url=registry_url,
             partitions=partitions,
             replication_factor=replication_factor,
             wait_for_ack=wait_for_ack,
-            log=log,
-        )
-        self.topic_producer = salkafka.TopicProducer(
-            kafka_info=self.kafka_info, topic=read_topic, log=log
         )
         await asyncio.gather(
             self.topic_producer.start_task,
-            self.kafka_info.start_task,
             self.read_salinfo.start(),
             self.csc.start_task,
         )
