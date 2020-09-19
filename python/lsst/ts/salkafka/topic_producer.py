@@ -42,7 +42,7 @@ class TopicProducer:
         Parent log.
     """
 
-    def __init__(self, topic, kafka_info, log, max_queue_size=2):
+    def __init__(self, topic, kafka_info, log, max_queue_size=5):
         self.topic = topic
         self.kafka_info = kafka_info
         self.log = log.getChild(topic.sal_name)
@@ -58,6 +58,7 @@ class TopicProducer:
 
         self.samples_run_gc = 100
         self.received_samples = 0
+        self.write_moratory = 0.5
 
         self.start_task = asyncio.ensure_future(self.start())
 
@@ -94,10 +95,13 @@ class TopicProducer:
             and self.discard_timer_task.done()
         ):
             self.log.info(
-                f"{self.topic.name} python thread filling up. Starting 1s data-write moratory."
+                f"{self.topic.name} python thread filling up. "
+                f"Starting {self.write_moratory}s data-write moratory."
             )
             self.discarded_samples += 1
-            self.discard_timer_task = asyncio.create_task(asyncio.sleep(1))
+            self.discard_timer_task = asyncio.create_task(
+                asyncio.sleep(self.write_moratory)
+            )
 
         elif self.discard_timer_task.done():
             avro_data = data.get_vars()
