@@ -22,6 +22,7 @@
 __all__ = ["TopicProducer"]
 
 import asyncio
+import gc
 import time
 
 from lsst.ts import salobj
@@ -41,7 +42,7 @@ class TopicProducer:
         Parent log.
     """
 
-    def __init__(self, topic, kafka_info, log, max_queue_size=10):
+    def __init__(self, topic, kafka_info, log, max_queue_size=2):
         self.topic = topic
         self.kafka_info = kafka_info
         self.log = log.getChild(topic.sal_name)
@@ -54,6 +55,9 @@ class TopicProducer:
         self.discarded_samples = 0
         self.discard_timer_task = asyncio.Future()
         self.discard_timer_task.set_result(0)
+
+        self.samples_run_gc = 100
+        self.received_samples = 0
 
         self.start_task = asyncio.ensure_future(self.start())
 
@@ -72,6 +76,9 @@ class TopicProducer:
             avro_schema=self.avro_schema
         )
         self.topic.callback = self
+        gc_count = gc.get_count()
+        self.log.debug(f"Running GC: {gc_count} (collected: {gc.collect()})")
+        del gc_count
 
     async def __call__(self, data):
         """Forward one DDS sample (message) to Kafka.
@@ -99,6 +106,12 @@ class TopicProducer:
             await self.kafka_producer.send_and_wait(
                 self.avro_schema["name"], value=avro_data
             )
+
+            self.received_samples += 1
+            if self.received_samples > self.samples_run_gc:
+                self.log.debug(f"Running GC: {gc.collect()})")
+                self.received_samples = 0
+
             if self.discarded_samples > 0:
                 self.log.info(
                     f"{self.topic.name}: Discarded {self.discarded_samples} samples."
