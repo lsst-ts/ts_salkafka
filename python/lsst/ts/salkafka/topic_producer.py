@@ -103,6 +103,7 @@ class TopicProducer:
         replication_factor,
         wait_for_ack,
         max_queue=1000,
+        max_queue_size=10,
     ):
         self.topic = topic
         self.log = log.getChild(topic.sal_name)
@@ -135,6 +136,9 @@ class TopicProducer:
 
         # When to star dropping messages
         self.full_level = max_queue
+
+        # How many topics in the python read queue to discard topics
+        self.max_queue_size = max_queue_size
 
         # When to warn that send queue is filling
         self.warning_level = int(max_queue / 2)
@@ -184,8 +188,12 @@ class TopicProducer:
 
         self.queue_full = (
             list_length > self.full_level
-            if not self.queue_full
+            if not queue_full
             else list_length > self.resume_level
+        ) or (
+            len(self.topic._data_queue) > self.max_queue_size
+            if not queue_full
+            else len(self.topic._data_queue) > 2
         )
 
         if not self.queue_full:
