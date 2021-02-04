@@ -57,7 +57,7 @@ class ComponentProducerSet:
         args,
         queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
         component=None,
-        add_ack=None,
+        add_ackcmd=None,
         commands=None,
         events=None,
         telemetry=None,
@@ -86,7 +86,7 @@ class ComponentProducerSet:
                 args,
                 queue_len=queue_len,
                 component=component,
-                add_ack=add_ack,
+                add_ackcmd=add_ackcmd,
                 commands=commands,
                 events=events,
                 telemetry=telemetry,
@@ -98,7 +98,7 @@ class ComponentProducerSet:
         args,
         queue_len,
         component=None,
-        add_ack=False,
+        add_ackcmd=False,
         commands=None,
         events=None,
         telemetry=None,
@@ -131,7 +131,7 @@ class ComponentProducerSet:
             else:
                 self.log.info(
                     f"Creating producer for {component}: "
-                    f"[add_ack: {add_ack}] "
+                    f"[add_ackcmd: {add_ackcmd}] "
                     f"[commands: {commands}] "
                     f"[events: {events}] "
                     f"[telemetry: {telemetry}] "
@@ -143,7 +143,7 @@ class ComponentProducerSet:
                         name=component,
                         kafka_info=kafka_info,
                         queue_len=queue_len,
-                        add_ack=add_ack,
+                        add_ackcmd=add_ackcmd,
                         commands=commands,
                         events=events,
                         telemetry=telemetry,
@@ -218,7 +218,7 @@ class ComponentProducerSet:
                                     "queue_len", salobj.topics.DEFAULT_QUEUE_LEN
                                 ),
                                 component=component_info["component"],
-                                add_ack=topic_set.get("add_ack", False),
+                                add_ackcmd=topic_set.get("add_ackcmd", False),
                                 commands=topic_set.get("commands", []),
                                 events=topic_set.get("events", []),
                                 telemetry=topic_set.get("telemetry", []),
@@ -267,7 +267,7 @@ class ComponentProducerSet:
 
     @classmethod
     def create_process(
-        cls, args, queue_len, component, add_ack, commands, events, telemetry
+        cls, args, queue_len, component, add_ackcmd, commands, events, telemetry
     ):
         loop = asyncio.new_event_loop()
 
@@ -277,7 +277,7 @@ class ComponentProducerSet:
             args,
             queue_len=queue_len,
             component=component,
-            add_ack=add_ack,
+            add_ackcmd=add_ackcmd,
             commands=commands,
             events=events,
             telemetry=telemetry,
@@ -387,7 +387,12 @@ class ComponentProducerSet:
         # Make sure there is no topic left behind. Create a set with all the
         # topics and remove them as they are added. If something is left in the
         # control set at the end, it will be added to the set.
-        control_set = {"add_ack": True, "commands": [], "events": [], "telemetry": []}
+        control_set = {
+            "add_ackcmd": True,
+            "commands": [],
+            "events": [],
+            "telemetry": [],
+        }
 
         component = components_info["component"]
         topic_metadata = salobj.parse_idl(
@@ -404,14 +409,14 @@ class ComponentProducerSet:
                 control_set["telemetry"].append(topic)
 
         if len(control_set["commands"]) == 0:
-            control_set["add_ack"] = False
+            control_set["add_ackcmd"] = False
 
         ack_added = False
         for topic_set in components_info["topic_sets"]:
-            if topic_set.get("add_ack", False) and not ack_added:
+            if topic_set.get("add_ackcmd", False) and not ack_added:
                 ack_added = True
-                control_set["add_ack"] = False
-            elif topic_set.get("add_ack", False) and ack_added:
+                control_set["add_ackcmd"] = False
+            elif topic_set.get("add_ackcmd", False) and ack_added:
                 raise RuntimeError("Ackcmd added multiple times.")
 
             for topic_type in ["commands", "events", "telemetry"]:
@@ -423,7 +428,7 @@ class ComponentProducerSet:
                             f"Topic {topic_name} unrecognized or already included in {topic_type}."
                         )
 
-        if control_set["add_ack"] or any(
+        if control_set["add_ackcmd"] or any(
             [
                 len(control_set[topic_type]) > 0
                 for topic_type in ["commands", "events", "telemetry"]
@@ -459,7 +464,7 @@ class ComponentProducerSet:
               type: object
               additionalProperties: false
               properties:
-                add_ack:
+                add_ackcmd:
                   description: Add command acknowledgements?
                   type: boolean
                 commands:

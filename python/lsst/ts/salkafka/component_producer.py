@@ -60,18 +60,20 @@ class ComponentProducer:
         Name of SAL component, e.g. "ATDome".
     kafka_info : `KafkaInfo`
         Information and clients for using Kafka.
-    read_queue_len : `int` or `None`
-        Lenght of the DDS read queue. By default (`None`) fall back to using
-        `salobj.domain.DDS_READ_QUEUE_LEN`. Value must be larger or equal to
-        `salobj.domain.DDS_READ_QUEUE_LEN`.
-    add_ack : `bool`
-        Add ackcmd to the producer? (default = True).
-    commands : `list` of `str` or None
-        Commands to add to the producer. By default (`None`) add all commands.
-    events : `list` of `str` or None
-        Events to add to the producer. By default (`None`) add all events.
-    telemetry : `list` of `str` or None
-        Telemtry to add to the producer. By default (`None`) add all telemetry.
+    queue_len : `int`, optional
+        Length of the DDS read queue. Must be greater than or equal to
+        `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
+    add_ackcmd : `bool`, optional
+        Add ``ackcmd`` topic to the producer? (default = True).
+    commands : `list` of `str` or `None`, optional
+        Commands to add to the producer, with no prefix, e.g. "enable".
+        By default (`None`) add all commands.
+    events : `list` of `str` or `None`, optional
+        Events to add to the producer, with no prefix, e.g. "summaryState".
+        By default (`None`) add all events.
+    telemetry : `list` of `str` or `None`, optional
+        Telemtry topics to add to the producer.
+        By default (`None`) add all telemetry.
 
     """
 
@@ -81,7 +83,7 @@ class ComponentProducer:
         name,
         kafka_info,
         queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
-        add_ack=True,
+        add_ackcmd=True,
         commands=None,
         events=None,
         telemetry=None,
@@ -97,7 +99,7 @@ class ComponentProducer:
 
         # Create a list of (basic topic name, SAL topic name prefix).
         topic_name_prefixes = []
-        if add_ack:
+        if add_ackcmd:
             topic_name_prefixes += [("ackcmd", "")]
 
         if commands is None:
@@ -166,7 +168,7 @@ class ComponentProducer:
         sal_prefix : `str`
             SAL topic prefix: one of "command\_", "logevent\_" or ""
         queue_len : `int`, optional
-            Lenght of the read queue (default to
+            Length of the read queue (default to
             `salobj.topics.DEFAULT_QUEUE_LEN`).
 
         """
