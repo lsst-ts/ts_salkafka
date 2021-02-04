@@ -176,12 +176,12 @@ class ComponentProducerSet:
         self.wait_forever_task.cancel()
 
     @classmethod
-    async def amain(cls, argv):
+    async def amain(cls):
         """Parse command line arguments, then create and run a
         `ComponentProducerSet`.
         """
         parser = cls.make_argument_parser()
-        args = parser.parse_args(argv)
+        args = parser.parse_args()
 
         if args.show_schema:
             print(cls.schema())
