@@ -191,7 +191,7 @@ class ComponentProducerSet:
             args.wait_for_ack = int(args.wait_for_ack)
 
         if args.file is None:
-            producer_set = ComponentProducerSet(args)
+            producer_set = cls(args)
             await producer_set.done_task
         else:
             component_info = cls.validate(args.file)
@@ -273,7 +273,7 @@ class ComponentProducerSet:
 
         asyncio.set_event_loop(loop)
 
-        producer_set = ComponentProducerSet(
+        producer_set = cls(
             args,
             queue_len=queue_len,
             component=component,
@@ -361,8 +361,8 @@ class ComponentProducerSet:
 
         return parser
 
-    @staticmethod
-    def validate(filename):
+    @classmethod
+    def validate(cls, filename):
         """Load and validate input file.
 
         Parameters
@@ -377,7 +377,7 @@ class ComponentProducerSet:
 
         """
         # First step is to validate the input schema.
-        validator = jsonschema.Draft7Validator(ComponentProducerSet.schema())
+        validator = jsonschema.Draft7Validator(cls.schema())
 
         with open(filename) as fp:
             components_info = yaml.safe_load(fp)
