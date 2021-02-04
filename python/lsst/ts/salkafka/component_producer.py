@@ -19,12 +19,34 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["ComponentProducer"]
+__all__ = ["check_names", "ComponentProducer"]
 
 import asyncio
 
 from lsst.ts import salobj
 from .topic_producer import TopicProducer
+
+
+def check_names(description, names, valid_names):
+    """Raise ValueError if any names are invalid.
+
+    Parameters
+    ----------
+    description : `str`
+        Brief description of these names, for use in the exception.
+    names : `List` [`str`]
+        names to check.
+    valid_names : `List` [`str`]
+        All valid names.
+
+    Raises
+    ------
+    ValueError
+        If any names in ``names`` are not in ``valid_names``.
+    """
+    invalid_items = set(names) - set(valid_names)
+    if invalid_items:
+        raise ValueError(f"Unrecognized {description}: {sorted(invalid_items)}")
 
 
 class ComponentProducer:
@@ -83,33 +105,34 @@ class ComponentProducer:
                 (cmd_name, "command_") for cmd_name in self.salinfo.command_names
             ]
         else:
-            topic_name_prefixes += [
-                (cmd_name, "command_")
-                for cmd_name in commands
-                if cmd_name in self.salinfo.command_names
-            ]
+            check_names(
+                description="commands",
+                names=commands,
+                valid_names=self.salinfo.command_names,
+            )
+            topic_name_prefixes += [(cmd_name, "command_") for cmd_name in commands]
 
         if events is None:
             topic_name_prefixes += [
                 (evt_name, "logevent_") for evt_name in self.salinfo.event_names
             ]
         else:
-            topic_name_prefixes += [
-                (evt_name, "logevent_")
-                for evt_name in events
-                if evt_name in self.salinfo.event_names
-            ]
+            check_names(
+                description="events", names=events, valid_names=self.salinfo.event_names
+            )
+            topic_name_prefixes += [(evt_name, "logevent_") for evt_name in events]
 
         if telemetry is None:
             topic_name_prefixes += [
                 (tel_name, "") for tel_name in self.salinfo.telemetry_names
             ]
         else:
-            topic_name_prefixes += [
-                (tel_name, "")
-                for tel_name in telemetry
-                if tel_name in self.salinfo.telemetry_names
-            ]
+            check_names(
+                description="telemetry topics",
+                names=telemetry,
+                valid_names=self.salinfo.telemetry_names,
+            )
+            topic_name_prefixes += [(tel_name, "") for tel_name in telemetry]
 
         kafka_topic_names = [
             f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
