@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from . import mocks
-from .kafka_info import *
+from .kafka_producer_factory import *
 from .make_avro_schema import *
 from .topic_producer import *
 from .component_producer import *

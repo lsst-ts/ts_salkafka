@@ -58,7 +58,7 @@ class ComponentProducer:
         DDS domain participant and quality of service information.
     name : `str`
         Name of SAL component, e.g. "ATDome".
-    kafka_info : `KafkaInfo`
+    kafka_factory : `KafkaProducerFactory`
         Information and clients for using Kafka.
     queue_len : `int`, optional
         Length of the DDS read queue. Must be greater than or equal to
@@ -81,7 +81,7 @@ class ComponentProducer:
         self,
         domain,
         name,
-        kafka_info,
+        kafka_factory,
         queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
         add_ackcmd=True,
         commands=None,
@@ -91,8 +91,8 @@ class ComponentProducer:
         self.domain = domain
         # index=0 means we get samples from all SAL indices of the component
         self.salinfo = salobj.SalInfo(domain=self.domain, name=name, index=0)
-        self.kafka_info = kafka_info
-        self.log = kafka_info.log.getChild(name)
+        self.kafka_factory = kafka_factory
+        self.log = kafka_factory.log.getChild(name)
         self.topic_producers = dict()
         """Dict of topic attr_name: TopicProducer.
         """
@@ -144,7 +144,7 @@ class ComponentProducer:
         self.log.info(
             f"Creating Kafka topics for {self.salinfo.name} if not already present."
         )
-        self.kafka_info.make_kafka_topics(kafka_topic_names)
+        self.kafka_factory.make_kafka_topics(kafka_topic_names)
 
         self.log.info(f"Creating SAL/Kafka topic producers for {self.salinfo.name}.")
         try:
@@ -180,7 +180,9 @@ class ComponentProducer:
             queue_len=queue_len,
             filter_ackcmd=False,
         )
-        producer = TopicProducer(topic=topic, kafka_info=self.kafka_info, log=self.log)
+        producer = TopicProducer(
+            topic=topic, kafka_factory=self.kafka_factory, log=self.log
+        )
         self.topic_producers[topic.attr_name] = producer
 
     async def start(self):

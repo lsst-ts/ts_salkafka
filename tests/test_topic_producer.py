@@ -76,26 +76,22 @@ class TopicProducerTestCase(asynctest.TestCase):
         log.addHandler(logging.StreamHandler())
         log.setLevel(logging.INFO)
 
-        broker_url = "test.kafka:9000"
-        registry_url = "https://registry.test.kafka/"
-        partitions = 2
-        replication_factor = 3
-        wait_for_ack = 1
-
-        self.kafka_info = salkafka.KafkaInfo(
-            broker_url=broker_url,
-            registry_url=registry_url,
-            partitions=partitions,
-            replication_factor=replication_factor,
-            wait_for_ack=wait_for_ack,
-            log=log,
+        kafka_config = salkafka.KafkaConfiguration(
+            broker_url="test.kafka:9000",
+            registry_url="https://registry.test.kafka/",
+            partitions=2,
+            replication_factor=3,
+            wait_for_ack=1,
+        )
+        self.kafka_factory = salkafka.KafkaProducerFactory(
+            config=kafka_config, log=log,
         )
         self.topic_producer = salkafka.TopicProducer(
-            kafka_info=self.kafka_info, topic=read_topic, log=log
+            kafka_factory=self.kafka_factory, topic=read_topic, log=log
         )
         await asyncio.gather(
             self.topic_producer.start_task,
-            self.kafka_info.start_task,
+            self.kafka_factory.start_task,
             self.read_salinfo.start(),
             self.csc.start_task,
         )

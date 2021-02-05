@@ -38,7 +38,8 @@ import concurrent.futures
 
 from lsst.ts import idl
 from lsst.ts import salobj
-from lsst.ts import salkafka
+from . import component_producer
+from . import kafka_producer_factory
 
 
 class ComponentProducerSet:
@@ -50,22 +51,52 @@ class ComponentProducerSet:
     args : `argparse.Namespace`
         Parsed command-line arguments using the argument parser
         from `make_argument_parser`.
+    kafka_config : `KafkaConfig`
+        Kafka configuration.
+    component : `str` or `None`
+        Name of a single SAL component for which to handle
+        a subset of topics.
+        If `None` then use ``components``.
+        If not `None` then pay attention to add_ackcmd, commands, events,
+        and telemetry arguments.
+    components : `List` [`str`]
+        Names of SAL components to produce Kafka messages for.
+        Handle all topics for each component.
+        Ignored if ``component`` is not None.
+    add_ackcmd : `bool`, optional
+        Add ``ackcmd`` topic to the producer? (default = True).
+    commands : `list` of `str` or `None`, optional
+        Commands to add to the producer, with no prefix, e.g. "enable".
+        By default (`None`) add all commands.
+    events : `list` of `str` or `None`, optional
+        Events to add to the producer, with no prefix, e.g. "summaryState".
+        By default (`None`) add all events.
+    telemetry : `list` of `str` or `None`, optional
+        Telemtry topics to add to the producer.
+        By default (`None`) add all telemetry.
+    log_level : `int`, optional
+        Log level.
+    queue_len : `int`, optional
+        Length of the DDS read queue. Must be greater than or equal to
+        `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
     """
 
     def __init__(
         self,
-        args,
-        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
-        component=None,
+        kafka_config,
+        component,
+        components,
         add_ackcmd=None,
         commands=None,
         events=None,
         telemetry=None,
+        log_level=logging.INFO,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
     ):
 
         self.log = logging.getLogger()
         self.log.addHandler(logging.StreamHandler())
-        self.log.setLevel(args.loglevel)
+        self.log.setLevel(log_level)
 
         semaphore_filename = "SALKAFKA_PRODUCER_RUNNING"
         suffix = os.environ.get("SALKAFKA_SEMAPHORE_SUFFIX")
@@ -78,12 +109,13 @@ class ComponentProducerSet:
 
         self.producers = []
 
-        # A task that ends when the service is interrupted
+        # A task that ends when the service is interrupted.
         self.wait_forever_task = asyncio.Future()
 
         self.done_task = asyncio.get_event_loop().create_task(
             self.run(
-                args,
+                components=components,
+                kafka_config=kafka_config,
                 queue_len=queue_len,
                 component=component,
                 add_ackcmd=add_ackcmd,
@@ -95,36 +127,32 @@ class ComponentProducerSet:
 
     async def run(
         self,
-        args,
-        queue_len,
+        kafka_config,
+        components,
         component=None,
         add_ackcmd=False,
         commands=None,
         events=None,
         telemetry=None,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
     ):
         """Create and run the component producers.
         """
-        async with salobj.Domain() as domain, salkafka.KafkaInfo(
-            broker_url=args.broker_url,
-            registry_url=args.registry_url,
-            partitions=args.partitions,
-            replication_factor=args.replication_factor,
-            wait_for_ack=args.wait_for_ack,
-            log=self.log,
-        ) as kafka_info:
+        async with salobj.Domain() as domain, kafka_producer_factory.KafkaProducerFactory(
+            config=kafka_config, log=self.log,
+        ) as kafka_factory:
             self.domain = domain
-            self.kafka_info = kafka_info
+            self.kafka_factory = kafka_factory
 
             self.producers = []
             if component is None:
                 self.log.info("Creating producers")
-                for name in args.components:
+                for name in components:
                     self.producers.append(
-                        salkafka.ComponentProducer(
+                        component_producer.ComponentProducer(
                             domain=domain,
                             name=name,
-                            kafka_info=kafka_info,
+                            kafka_factory=kafka_factory,
                             queue_len=queue_len,
                         )
                     )
@@ -138,10 +166,10 @@ class ComponentProducerSet:
                 )
 
                 self.producers.append(
-                    salkafka.ComponentProducer(
+                    component_producer.ComponentProducer(
                         domain=domain,
                         name=component,
-                        kafka_info=kafka_info,
+                        kafka_factory=kafka_factory,
                         queue_len=queue_len,
                         add_ackcmd=add_ackcmd,
                         commands=commands,
@@ -189,9 +217,21 @@ class ComponentProducerSet:
 
         if args.wait_for_ack != "all":
             args.wait_for_ack = int(args.wait_for_ack)
+        kafka_config = kafka_producer_factory.KafkaConfiguration(
+            broker_url=args.broker_url,
+            registry_url=args.registry_url,
+            partitions=args.partitions,
+            replication_factor=args.replication_factor,
+            wait_for_ack=args.wait_for_ack,
+        )
 
         if args.file is None:
-            producer_set = cls(args)
+            producer_set = cls(
+                kafka_config=kafka_config,
+                component=None,
+                components=args.components,
+                log_level=args.log_level,
+            )
             await producer_set.done_task
         else:
             component_info = cls.validate(args.file)
@@ -213,15 +253,16 @@ class ComponentProducerSet:
                             pool,
                             functools.partial(
                                 cls.create_process,
-                                args=args,
-                                queue_len=component_info.get(
-                                    "queue_len", salobj.topics.DEFAULT_QUEUE_LEN
-                                ),
+                                kafka_config=kafka_config,
                                 component=component_info["component"],
                                 add_ackcmd=topic_set.get("add_ackcmd", False),
                                 commands=topic_set.get("commands", []),
                                 events=topic_set.get("events", []),
                                 telemetry=topic_set.get("telemetry", []),
+                                log_level=args.log_level,
+                                queue_len=component_info.get(
+                                    "queue_len", salobj.topics.DEFAULT_QUEUE_LEN
+                                ),
                             ),
                         )
                     )
@@ -267,20 +308,30 @@ class ComponentProducerSet:
 
     @classmethod
     def create_process(
-        cls, args, queue_len, component, add_ackcmd, commands, events, telemetry
+        cls,
+        kafka_config,
+        component,
+        add_ackcmd,
+        commands,
+        events,
+        telemetry,
+        log_level,
+        queue_len,
     ):
         loop = asyncio.new_event_loop()
 
         asyncio.set_event_loop(loop)
 
         producer_set = cls(
-            args,
-            queue_len=queue_len,
+            kafka_config=kafka_config,
             component=component,
+            components=[],
             add_ackcmd=add_ackcmd,
             commands=commands,
             events=events,
             telemetry=telemetry,
+            log_level=log_level,
+            queue_len=queue_len,
         )
         loop.run_until_complete(producer_set.done_task)
 
@@ -292,7 +343,13 @@ class ComponentProducerSet:
             description="Send DDS messages to Kafka for one or more SAL components"
         )
         parser.add_argument(
-            "components", nargs="*", help='Names of SAL components, e.g. "Test"',
+            "components",
+            nargs="*",
+            help="Names of SAL components, e.g. ATDome ATDomeTrajectory. "
+            "If a SAL component has multiple SAL indices, such as MTHexapod "
+            "or Script, messages from all indices are read by the producer "
+            "(there is no way to restrict to a subset of indices). "
+            "Ignored if --file is specified.",
         )
         parser.add_argument(
             "--broker",
@@ -324,6 +381,7 @@ class ComponentProducerSet:
         parser.add_argument(
             "--loglevel",
             type=int,
+            dest="log_level",
             default=logging.INFO,
             help="Logging level; INFO=20 (default), DEBUG=10",
         )
@@ -340,23 +398,25 @@ class ComponentProducerSet:
             "--file",
             dest="file",
             required=False,
-            help="Input file with component configuration in yaml format. "
-            "This allows users to specify, a component and individual topics "
-            "for the producers.",
+            help="File specifying how to split topics for one SAL component "
+            "among multiple subprocesses. This is useful for chatty "
+            "SAL components such as MTM1M3. "
+            "Run with --validate to validate this file and exit. "
+            "Run with --show-schema to show the schema for such files.",
         )
         parser.add_argument(
             "--show-schema",
             dest="show_schema",
             required=False,
             action="store_true",
-            help="Show schema for the input file and exit.",
+            help="Show the schema for --file option files and exit.",
         )
         parser.add_argument(
             "--validate",
             dest="validate",
             required=False,
             action="store_true",
-            help="Validate input file and exit.",
+            help="Validate the file specified by --file and exit.",
         )
 
         return parser
@@ -452,7 +512,7 @@ class ComponentProducerSet:
         additionalProperties: false
         properties:
           component:
-            description: Name of SAL components, e.g. "Test".
+            description: Name of SAL component, e.g. "Test".
             type: string
           queue_len:
             description: Length of the python queue on the topic readers.

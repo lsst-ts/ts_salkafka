@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["KafkaInfo"]
+__all__ = ["KafkaConfiguration", "KafkaProducerFactory"]
 
 import asyncio
 
@@ -32,8 +32,8 @@ from kafkit.registry.aiohttp import RegistryApi
 from kafkit.registry import Serializer
 
 
-class KafkaInfo:
-    """Information and clients for using Kafka.
+class KafkaConfiguration:
+    """Kakfa producer configuration.
 
     Parameters
     ----------
@@ -53,18 +53,10 @@ class KafkaInfo:
         * 0: do not wait (unsafe)
         * 1: wait for first kafka broker to respond (recommended)
         * "all": wait for all kafka brokers to respond
-    log : `logging.Logger`
-        Logger.
     """
 
     def __init__(
-        self,
-        broker_url,
-        registry_url,
-        partitions,
-        replication_factor,
-        wait_for_ack,
-        log,
+        self, broker_url, registry_url, partitions, replication_factor, wait_for_ack,
     ):
         self.broker_url = broker_url
         self.registry_url = registry_url
@@ -75,12 +67,36 @@ class KafkaInfo:
                 f"wait_for_ack={wait_for_ack!r} must be one of 0, 1, 'all'"
             )
         self.wait_for_ack = wait_for_ack
+
+    def __repr__(self):
+        return (
+            f"KafkaConfiguration(broker_url={self.broker_url}, "
+            f"registry_url={self.registry_url}, "
+            f"partitions={self.partitions}, "
+            f"replication_factor={self.replication_factor}, "
+            f"wait_for_ack={self.wait_for_ack})"
+        )
+
+
+class KafkaProducerFactory:
+    """Factory for making Kafka producers.
+
+    Parameters
+    ----------
+    config : `KafkaConfiguration`
+        Kafka arguments.
+    log : `logging.Logger`
+        Logger.
+    """
+
+    def __init__(self, config, log):
+        self.config = config
         self.log = log
 
-        self.httpsession = None  # created by `start`
+        self.http_session = None  # created by `start`
         self.schema_registry = None
         self.log.info("Making Kafka client session")
-        self.broker_client = AdminClient({"bootstrap.servers": self.broker_url})
+        self.broker_client = AdminClient({"bootstrap.servers": self.config.broker_url})
         self.start_task = asyncio.ensure_future(self.start())
 
     async def start(self):
@@ -88,16 +104,16 @@ class KafkaInfo:
         """
         self.log.info("Making avro schema registry.")
         connector = aiohttp.TCPConnector(limit_per_host=20)
-        self.httpsession = aiohttp.ClientSession(connector=connector)
+        self.http_session = aiohttp.ClientSession(connector=connector)
         self.schema_registry = RegistryApi(
-            session=self.httpsession, url=self.registry_url
+            session=self.http_session, url=self.config.registry_url
         )
 
     async def close(self):
         """Close the Kafka clients.
         """
-        if self.httpsession is not None:
-            await self.httpsession.close()
+        if self.http_session is not None:
+            await self.http_session.close()
 
     def make_kafka_topics(self, topic_names):
         """Initialize Kafka topics that do not already exist.
@@ -120,8 +136,8 @@ class KafkaInfo:
         new_topic_metadata = [
             NewTopic(
                 topic_name,
-                num_partitions=self.partitions,
-                replication_factor=self.replication_factor,
+                num_partitions=self.config.partitions,
+                replication_factor=self.config.replication_factor,
             )
             for topic_name in new_topic_names
         ]
@@ -155,8 +171,8 @@ class KafkaInfo:
         )
         producer = AIOKafkaProducer(
             loop=asyncio.get_running_loop(),
-            bootstrap_servers=self.broker_url,
-            acks=self.wait_for_ack,
+            bootstrap_servers=self.config.broker_url,
+            acks=self.config.wait_for_ack,
             value_serializer=serializer,
         )
         await producer.start()

@@ -29,7 +29,7 @@ __all__ = [
 import contextlib
 import types
 
-from . import kafka_info
+from . import kafka_producer_factory
 
 
 class MockKafkitRegistryApi:
@@ -127,7 +127,9 @@ _MOCK_CLASSES = dict(
 )
 
 # dict of class name: real class
-_REAL_CLASSES = dict((name, getattr(kafka_info, name)) for name in _MOCK_CLASSES)
+_REAL_CLASSES = dict(
+    (name, getattr(kafka_producer_factory, name)) for name in _MOCK_CLASSES
+)
 
 
 @contextlib.contextmanager
@@ -136,8 +138,8 @@ def insert_all_mocks(*args, **kwds):
     """
     try:
         for name, MockClass in _MOCK_CLASSES.items():
-            setattr(kafka_info, name, MockClass)
+            setattr(kafka_producer_factory, name, MockClass)
         yield
     finally:
         for name, RealClass in _REAL_CLASSES.items():
-            setattr(kafka_info, name, RealClass)
+            setattr(kafka_producer_factory, name, RealClass)

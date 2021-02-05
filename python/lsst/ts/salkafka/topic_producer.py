@@ -35,15 +35,15 @@ class TopicProducer:
     ----------
     topic : `salobj.topics.ReadTopic`
         Topic for which to produce kafka messages.
-    kafka_info : `KafkaInfo`
+    kafka_factory : `KafkaProducerFactory`
         Information and clients for using Kafka.
     log : `logging.Logger`
         Parent log.
     """
 
-    def __init__(self, topic, kafka_info, log):
+    def __init__(self, topic, kafka_factory, log):
         self.topic = topic
-        self.kafka_info = kafka_info
+        self.kafka_factory = kafka_factory
         self.log = log.getChild(topic.sal_name)
         self.kafka_producer = None
         self.avro_schema = make_avro_schema(topic)
@@ -60,7 +60,7 @@ class TopicProducer:
         """Start the Kafka producer.
         """
         self.log.debug("Making kafka producer")
-        self.kafka_producer = await self.kafka_info.make_producer(
+        self.kafka_producer = await self.kafka_factory.make_producer(
             avro_schema=self.avro_schema
         )
         self.topic.callback = self
