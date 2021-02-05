@@ -32,7 +32,7 @@ index_gen = salobj.index_generator()
 
 class MakeAvroSchemaTestCase(unittest.TestCase):
     def setUp(self):
-        salobj.set_random_lsst_dds_domain()
+        salobj.set_random_lsst_dds_partition_prefix()
         np.random.seed(47)
 
     def test_arrays(self):

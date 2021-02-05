@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import contextlib
 import logging
 import unittest
 
@@ -32,24 +33,30 @@ from lsst.ts import salkafka
 np.random.seed(47)
 
 
-class TopicProducerTestCase(asynctest.TestCase):
+class ComponentProducerTestCase(asynctest.TestCase):
     def run(self, result=None):
         """Override `run` to insert mocks for every test.
 
         https://stackoverflow.com/a/11180583
         """
+        salobj.set_random_lsst_dds_partition_prefix()
         with salkafka.mocks.insert_all_mocks():
             super().run(result)
 
-    async def setUp(self):
-        salobj.set_random_lsst_dds_domain()
-        # Use a non-zero index for the producer to test that
+    @contextlib.asynccontextmanager
+    async def make_component_producer(self):
+        """Make a CSC and component producer for the Test SAL component.
+
+        Attributes
+        ----------
+        csc : `lsst.ts.salobj.TestCsc`
+            A Test CSC you can use to produce data.
+        component_producer : `ComponentProducer`
+            The component producer.
+        """
+        # Use an arbitrary non-zero index for the producer to test that
         # the topic producer can see it.
         self.csc = salobj.TestCsc(index=5)
-
-        # Always use an index of 0 for the TopicProducer's read topic
-        # (which we get from the remote).
-        self.remote = salobj.Remote(domain=self.csc.domain, name="Test", index=0)
 
         log = logging.getLogger()
         log.addHandler(logging.StreamHandler())
@@ -68,89 +75,85 @@ class TopicProducerTestCase(asynctest.TestCase):
             replication_factor=replication_factor,
             wait_for_ack=wait_for_ack,
         )
-        self.kafka_factory = salkafka.KafkaProducerFactory(
-            config=kafka_config, log=log,
-        )
+        kafka_factory = salkafka.KafkaProducerFactory(config=kafka_config, log=log,)
         self.component_producer = salkafka.ComponentProducer(
-            domain=self.csc.domain, name="Test", kafka_factory=self.kafka_factory
+            domain=self.csc.domain, name="Test", kafka_factory=kafka_factory
         )
 
         await asyncio.gather(
             self.component_producer.start_task,
-            self.kafka_factory.start_task,
-            self.remote.start_task,
+            kafka_factory.start_task,
             self.csc.start_task,
         )
-
-    async def tearDown(self):
-        await asyncio.gather(
-            self.component_producer.close(),
-            self.kafka_factory.close(),
-            self.remote.close(),
-            self.csc.close(),
-        )
+        try:
+            yield
+        finally:
+            await self.csc.close()
+            await kafka_factory.close()
+            await self.component_producer.close()
 
     async def test_basics(self):
-        attr_names = ["ack_ackcmd"]
-        attr_names += ["cmd_" + name for name in self.csc.salinfo.command_names]
-        attr_names += ["evt_" + name for name in self.csc.salinfo.event_names]
-        attr_names += ["tel_" + name for name in self.csc.salinfo.telemetry_names]
-        self.assertEqual(
-            set(attr_names), set(self.component_producer.topic_producers.keys())
-        )
+        async with self.make_component_producer():
+            attr_names = ["ack_ackcmd"]
+            attr_names += ["cmd_" + name for name in self.csc.salinfo.command_names]
+            attr_names += ["evt_" + name for name in self.csc.salinfo.event_names]
+            attr_names += ["tel_" + name for name in self.csc.salinfo.telemetry_names]
+            self.assertEqual(
+                set(attr_names), set(self.component_producer.topic_producers.keys())
+            )
 
-        producer = self.component_producer.topic_producers["evt_arrays"]
-        for isample in range(3):
-            evt_array_data = self.csc.make_random_evt_arrays()
-            self.csc.evt_arrays.put(evt_array_data)
-            for iread in range(10):
-                if len(producer.kafka_producer.sent_data) > isample:
-                    break
-                await asyncio.sleep(0.01)
-            else:
-                self.fail("Data not seen in time")
-            self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
-            (
-                kafka_topic_name,
-                sent_value,
-                serialized_value,
-            ) = producer.kafka_producer.sent_data[-1]
-            self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
-            self.assertIsInstance(serialized_value, bytes)
-            for key, value in evt_array_data.get_vars().items():
-                if key == "private_rcvStamp":
-                    # not set in evt_array_data but set in received
-                    # sample and thus in ``sent_value``
-                    continue
-                if isinstance(value, np.ndarray):
-                    np.testing.assert_array_equal(sent_value[key], value)
+            producer = self.component_producer.topic_producers["evt_arrays"]
+            for isample in range(3):
+                evt_array_data = self.csc.make_random_evt_arrays()
+                self.csc.evt_arrays.put(evt_array_data)
+                for iread in range(10):
+                    if len(producer.kafka_producer.sent_data) > isample:
+                        break
+                    await asyncio.sleep(0.01)
                 else:
-                    self.assertEqual(sent_value[key], value)
+                    self.fail("Data not seen in time")
+                self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
+                (
+                    kafka_topic_name,
+                    sent_value,
+                    serialized_value,
+                ) = producer.kafka_producer.sent_data[-1]
+                self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
+                self.assertIsInstance(serialized_value, bytes)
+                for key, value in evt_array_data.get_vars().items():
+                    if key == "private_rcvStamp":
+                        # not set in evt_array_data but set in received
+                        # sample and thus in ``sent_value``
+                        continue
+                    if isinstance(value, np.ndarray):
+                        np.testing.assert_array_equal(sent_value[key], value)
+                    else:
+                        self.assertEqual(sent_value[key], value)
 
-        producer = self.component_producer.topic_producers["evt_scalars"]
-        for isample in range(3):
-            evt_scalar_data = self.csc.make_random_evt_scalars()
-            self.csc.evt_scalars.put(evt_scalar_data)
-            for iread in range(10):
-                if len(producer.kafka_producer.sent_data) > isample:
-                    break
-                await asyncio.sleep(0.01)
-            else:
-                self.fail("Data not seen in time")
-            self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
-            (
-                kafka_topic_name,
-                sent_value,
-                serialized_value,
-            ) = producer.kafka_producer.sent_data[-1]
-            self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_scalars")
-            self.assertIsInstance(serialized_value, bytes)
-            for key, value in evt_scalar_data.get_vars().items():
-                if key == "private_rcvStamp":
-                    # not set in evt_scalar_data but set in received
-                    # sample and thus in ``sent_value``
-                    continue
-                self.assertEqual(sent_value[key], value)
+            producer = self.component_producer.topic_producers["evt_scalars"]
+            for isample in range(3):
+                evt_scalar_data = self.csc.make_random_evt_scalars()
+                self.csc.evt_scalars.put(evt_scalar_data)
+                for iread in range(10):
+                    if len(producer.kafka_producer.sent_data) > isample:
+                        break
+                    await asyncio.sleep(0.01)
+                else:
+                    self.fail("Data not seen in time")
+                self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
+                (
+                    kafka_topic_name,
+                    sent_value,
+                    serialized_value,
+                ) = producer.kafka_producer.sent_data[-1]
+                self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_scalars")
+                self.assertIsInstance(serialized_value, bytes)
+                for key, value in evt_scalar_data.get_vars().items():
+                    if key == "private_rcvStamp":
+                        # not set in evt_scalar_data but set in received
+                        # sample and thus in ``sent_value``
+                        continue
+                    self.assertEqual(sent_value[key], value)
 
 
 if __name__ == "__main__":
