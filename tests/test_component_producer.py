@@ -77,7 +77,7 @@ class ComponentProducerTestCase(asynctest.TestCase):
         )
         kafka_factory = salkafka.KafkaProducerFactory(config=kafka_config, log=log,)
         self.component_producer = salkafka.ComponentProducer(
-            domain=self.csc.domain, name="Test", kafka_factory=kafka_factory
+            domain=self.csc.domain, component="Test", kafka_factory=kafka_factory
         )
 
         await asyncio.gather(

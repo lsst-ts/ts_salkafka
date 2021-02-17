@@ -56,85 +56,84 @@ class ComponentProducer:
     ----------
     domain : `lsst.ts.salobj.Domain`
         DDS domain participant and quality of service information.
-    name : `str`
+    component : `str`
         Name of SAL component, e.g. "ATDome".
     kafka_factory : `KafkaProducerFactory`
         Information and clients for using Kafka.
     queue_len : `int`, optional
         Length of the DDS read queue. Must be greater than or equal to
         `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
-    add_ackcmd : `bool`, optional
-        Add ``ackcmd`` topic to the producer? (default = True).
-    commands : `list` of `str` or `None`, optional
-        Commands to add to the producer, with no prefix, e.g. "enable".
-        By default (`None`) add all commands.
-    events : `list` of `str` or `None`, optional
-        Events to add to the producer, with no prefix, e.g. "summaryState".
-        By default (`None`) add all events.
-    telemetry : `list` of `str` or `None`, optional
-        Telemtry topics to add to the producer.
-        By default (`None`) add all telemetry.
+    topic_names : `TopicNames` or `None`
+        Topics for which to produce Kafka messages.
 
+    Raises
+    ------
+    RuntimeError
+        If there is no IDL file for the specified ``component``.
+    ValueError
+        If any topic name is invalid.
     """
 
     def __init__(
         self,
         domain,
-        name,
+        component,
         kafka_factory,
         queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
-        add_ackcmd=True,
-        commands=None,
-        events=None,
-        telemetry=None,
+        topic_names=None,
     ):
         self.domain = domain
         # index=0 means we get samples from all SAL indices of the component
-        self.salinfo = salobj.SalInfo(domain=self.domain, name=name, index=0)
+        self.salinfo = salobj.SalInfo(domain=self.domain, name=component, index=0)
         self.kafka_factory = kafka_factory
-        self.log = kafka_factory.log.getChild(name)
+        self.log = kafka_factory.log.getChild(component)
         self.topic_producers = dict()
         """Dict of topic attr_name: TopicProducer.
         """
 
         # Create a list of (basic topic name, SAL topic name prefix).
         topic_name_prefixes = []
-        if add_ackcmd:
+        if topic_names is None:
             topic_name_prefixes += [("ackcmd", "")]
-
-        if commands is None:
             topic_name_prefixes += [
                 (cmd_name, "command_") for cmd_name in self.salinfo.command_names
             ]
-        else:
-            check_names(
-                description="commands",
-                names=commands,
-                valid_names=self.salinfo.command_names,
-            )
-            topic_name_prefixes += [(cmd_name, "command_") for cmd_name in commands]
-
-        if events is None:
             topic_name_prefixes += [
                 (evt_name, "logevent_") for evt_name in self.salinfo.event_names
             ]
-        else:
-            check_names(
-                description="events", names=events, valid_names=self.salinfo.event_names
-            )
-            topic_name_prefixes += [(evt_name, "logevent_") for evt_name in events]
-
-        if telemetry is None:
             topic_name_prefixes += [
                 (tel_name, "") for tel_name in self.salinfo.telemetry_names
             ]
         else:
+            if topic_names.add_ackcmd:
+                topic_name_prefixes += [("ackcmd", "")]
+
+            check_names(
+                description="commands",
+                names=topic_names.commands,
+                valid_names=self.salinfo.command_names,
+            )
+            topic_name_prefixes += [
+                (cmd_name, "command_") for cmd_name in topic_names.commands
+            ]
+
+            check_names(
+                description="events",
+                names=topic_names.events,
+                valid_names=self.salinfo.event_names,
+            )
+            topic_name_prefixes += [
+                (evt_name, "logevent_") for evt_name in topic_names.events
+            ]
+
             check_names(
                 description="telemetry topics",
-                names=telemetry,
+                names=topic_names.telemetry,
                 valid_names=self.salinfo.telemetry_names,
             )
-            topic_name_prefixes += [(tel_name, "") for tel_name in telemetry]
+            topic_name_prefixes += [
+                (tel_name, "") for tel_name in topic_names.telemetry
+            ]
 
         kafka_topic_names = [
             f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
