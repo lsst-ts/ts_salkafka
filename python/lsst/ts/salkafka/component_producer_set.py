@@ -24,78 +24,114 @@ __all__ = ["ComponentProducerSet"]
 
 import argparse
 import asyncio
+import concurrent.futures
 import functools
-import jsonschema
 import logging
+import multiprocessing
 import os
 import pathlib
 import psutil
+import queue
 import signal
+import sys
 import traceback
-import yaml
 
-import concurrent.futures
-
-from lsst.ts import idl
 from lsst.ts import salobj
-from . import component_producer
-from . import kafka_producer_factory
+from .topic_names_set import TopicNamesSet
+from .component_producer import ComponentProducer
+from .kafka_producer_factory import KafkaConfiguration, KafkaProducerFactory
+
+
+def asyncio_run_func(async_func, **kwargs):
+    """Call asyncio.run on a specified async function with specified keyword
+    arguments.
+
+    Designed to run a coroutine as a subprocess using run_in_executor.
+    The coroutine must be created in the destination process's own event
+    loop, which is a nuisance without a function such as this.
+
+    Parameters
+    ----------
+    async_func : ``callable``
+        Async function or other callable.
+    **kwargs
+        Keyword arguments for ``async_func``.
+
+    Notes
+    -----
+    Here is a trivial example. Save the following to a file, along with the
+    definition for this function, and run it from the command line (be sure
+    (to include ``if __name__...`` to avoid errors on some systems)::
+
+        async def trivial_wait(index, delay):
+            print(f"trivial_wait(index={index}, delay={delay}) begins")
+            await asyncio.sleep(delay)
+            print(f"trivial_wait(index={index}, delay={delay}) ends")
+
+
+        async def amain():
+            loop = asyncio.get_running_loop()
+            tasks = []
+            with concurrent.futures.ProcessPoolExecutor() as pool:
+                for index in range(3):
+                    tasks.append(loop.run_in_executor(
+                        pool,
+                        functools.partial(
+                            asyncio_run_func,
+                            trivial_wait,
+                            index=index,
+                            delay=2,
+                        ),
+                    ))
+            await asyncio.gather(*tasks)
+
+
+        if __name__ == "__main__":
+            asyncio.run(amain())
+    """
+    asyncio.run(async_func(**kwargs))
 
 
 class ComponentProducerSet:
     r"""A collection of one or more `ComponentProducer`\ s
     created from a command-line script.
 
+    The normal way to use this class is to run `ComponentProducerSet.amain`
+    from a command-line script. If you wish to run it more directly
+    (e.g. for unit tests), do one of the following:
+
+    * To handle all topics for one or more SAL components::
+
+        kafka_config = KafkaConfig(_kafka info_)
+        producer_set = ComponentProducerSet(kafka_config=kafka_config)
+        await producer_set.run_producers(components=_component names_)
+
+    * To distribute production of one SAL component among multiple
+      subprocesses::
+
+        topic_names_set = TopicNamesSet.from_file(_filepath_)
+        kafka_config = KafkaConfig(_kafka_info_)
+        producer_set = ComponentProducerSet(kafka_config=kafka_config)
+        await producer_set.run_distributed_producer(
+            topic_names_set=topic_names_set,
+        )
+
     Parameters
     ----------
-    args : `argparse.Namespace`
-        Parsed command-line arguments using the argument parser
-        from `make_argument_parser`.
     kafka_config : `KafkaConfig`
         Kafka configuration.
-    component : `str` or `None`
-        Name of a single SAL component for which to handle
-        a subset of topics.
-        If `None` then use ``components``.
-        If not `None` then pay attention to add_ackcmd, commands, events,
-        and telemetry arguments.
-    components : `List` [`str`]
-        Names of SAL components to produce Kafka messages for.
-        Handle all topics for each component.
-        Ignored if ``component`` is not None.
-    add_ackcmd : `bool`, optional
-        Add ``ackcmd`` topic to the producer? (default = True).
-    commands : `list` of `str` or `None`, optional
-        Commands to add to the producer, with no prefix, e.g. "enable".
-        By default (`None`) add all commands.
-    events : `list` of `str` or `None`, optional
-        Events to add to the producer, with no prefix, e.g. "summaryState".
-        By default (`None`) add all events.
-    telemetry : `list` of `str` or `None`, optional
-        Telemtry topics to add to the producer.
-        By default (`None`) add all telemetry.
     log_level : `int`, optional
-        Log level.
-    queue_len : `int`, optional
-        Length of the DDS read queue. Must be greater than or equal to
-        `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
+        Log level, e.g. logging.INFO.
     """
 
     def __init__(
-        self,
-        kafka_config,
-        component,
-        components,
-        add_ackcmd=None,
-        commands=None,
-        events=None,
-        telemetry=None,
-        log_level=logging.INFO,
-        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
+        self, kafka_config, log_level=logging.INFO,
     ):
+        self.kafka_config = kafka_config
 
         self.log = logging.getLogger()
-        self.log.addHandler(logging.StreamHandler())
+        if not self.log.hasHandlers():
+            self.log.addHandler(logging.StreamHandler())
         self.log.setLevel(log_level)
 
         semaphore_filename = "SALKAFKA_PRODUCER_RUNNING"
@@ -107,117 +143,66 @@ class ComponentProducerSet:
         if self.semaphore_file.exists():
             self.semaphore_file.unlink()
 
+        # A collection of ComponentProducers.
+        # Set by run_producers but not run_distributed_producer.
         self.producers = []
 
+        # A collection of producer subprocess tasks.
+        # Set by run_distributed_producer but not run_producers.
+        self.producer_tasks = []
+
+        self.start_task = asyncio.Future()
+
+        # Internal task to monitor startup of producer(s)
+        # This is different than start_task in order to avoid a race condition
+        # when code (typically a unit test) creates a ComponentProducerSet
+        # and immediately starts waiting for start_task to be done.
+        self._interruptable_start_task = salobj.make_done_future()
+
+        self._run_producer_subprocess_task = salobj.make_done_future()
+
         # A task that ends when the service is interrupted.
-        self.wait_forever_task = asyncio.Future()
-
-        self.done_task = asyncio.get_event_loop().create_task(
-            self.run(
-                components=components,
-                kafka_config=kafka_config,
-                queue_len=queue_len,
-                component=component,
-                add_ackcmd=add_ackcmd,
-                commands=commands,
-                events=events,
-                telemetry=telemetry,
-            )
-        )
-
-    async def run(
-        self,
-        kafka_config,
-        components,
-        component=None,
-        add_ackcmd=False,
-        commands=None,
-        events=None,
-        telemetry=None,
-        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
-    ):
-        """Create and run the component producers.
-        """
-        async with salobj.Domain() as domain, kafka_producer_factory.KafkaProducerFactory(
-            config=kafka_config, log=self.log,
-        ) as kafka_factory:
-            self.domain = domain
-            self.kafka_factory = kafka_factory
-
-            self.producers = []
-            if component is None:
-                self.log.info("Creating producers")
-                for name in components:
-                    self.producers.append(
-                        component_producer.ComponentProducer(
-                            domain=domain,
-                            name=name,
-                            kafka_factory=kafka_factory,
-                            queue_len=queue_len,
-                        )
-                    )
-            else:
-                self.log.info(
-                    f"Creating producer for {component}: "
-                    f"[add_ackcmd: {add_ackcmd}] "
-                    f"[commands: {commands}] "
-                    f"[events: {events}] "
-                    f"[telemetry: {telemetry}] "
-                )
-
-                self.producers.append(
-                    component_producer.ComponentProducer(
-                        domain=domain,
-                        name=component,
-                        kafka_factory=kafka_factory,
-                        queue_len=queue_len,
-                        add_ackcmd=add_ackcmd,
-                        commands=commands,
-                        events=events,
-                        telemetry=telemetry,
-                    )
-                )
-
-            loop = asyncio.get_running_loop()
-            for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-                loop.add_signal_handler(s, self.signal_handler)
-
-            try:
-                self.log.info("Waiting for producers to start")
-                await asyncio.gather(
-                    *[producer.start_task for producer in self.producers]
-                )
-                self.log.info("Running")
-                self.semaphore_file.touch()
-                await self.wait_forever_task
-            except asyncio.CancelledError:
-                self.log.info("Shutting down")
-                for producer in self.producers:
-                    await producer.close()
-
-        if self.semaphore_file.exists():
-            self.semaphore_file.unlink()
-
-        self.log.info("Done")
-
-    def signal_handler(self):
-        self.wait_forever_task.cancel()
+        self._wait_forever_task = asyncio.Future()
 
     @classmethod
     async def amain(cls):
-        """Parse command line arguments, then create and run a
+        """Parse command line arguments and create and run a
         `ComponentProducerSet`.
         """
         parser = cls.make_argument_parser()
         args = parser.parse_args()
 
+        if args.file is not None and len(args.components) > 0:
+            parser.error("Cannot specify components and --file together; pick one.")
+
         if args.show_schema:
-            print(cls.schema())
+            print(TopicNamesSet.schema())
             return 0
 
+        if args.validate:
+            if args.file is None:
+                parser.error("Must specify --file with --validate")
+            try:
+                topic_names_set = TopicNamesSet.from_file(args.file)
+            except Exception as e:
+                print(f"File {args.file!r} is not valid: {e}")
+                sys.exit(1)
+
+            print(f"File {args.file!r} is valid.")
+            return
+
+        # Parse Kafka configuration, but first fix the type of wait_for_ack:
+        # cast the value to int, unless it is "all".
+        if args.broker_url is None or args.registry_url is None:
+            parser.error(
+                "You must specify --broker and --registry "
+                "unless you use --show-schema or --validate"
+            )
+        if int(args.partitions) <= 0:
+            parser.error(f"--partitions={args.partitions} must be positive")
         if args.wait_for_ack != "all":
             args.wait_for_ack = int(args.wait_for_ack)
-        kafka_config = kafka_producer_factory.KafkaConfiguration(
+        kafka_config = KafkaConfiguration(
             broker_url=args.broker_url,
             registry_url=args.registry_url,
             partitions=args.partitions,
@@ -226,114 +211,78 @@ class ComponentProducerSet:
         )
 
         if args.file is None:
-            producer_set = cls(
-                kafka_config=kafka_config,
-                component=None,
-                components=args.components,
-                log_level=args.log_level,
-            )
-            await producer_set.done_task
+            # Use a single process to handle all topics for one or more
+            # SAL components.
+            if len(args.components) == 0:
+                parser.error(
+                    "Nothing to do; specify one or more components, or --file."
+                )
+            producer_set = cls(kafka_config=kafka_config, log_level=args.log_level)
+            await producer_set.run_producers(components=args.components)
         else:
-            component_info = cls.validate(args.file)
-            loop = asyncio.get_running_loop()
-            # task to wait until process is terminated
-            wait_forever_task = asyncio.Future()
+            # Validate the file and quit if --validate,
+            # else run subprocesses to handle subsets of topics
+            # for one chatty SAL component.
+            if len(args.components) > 0:
+                parser.error("Cannot specify components and --file together; pick one.")
+            topic_names_set = TopicNamesSet.from_file(args.file)
 
-            # Add handle for process termination signals
-            for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-                loop.add_signal_handler(s, wait_forever_task.cancel)
+            if args.validate:
+                print(f"File {args.file!r} is valid.")
+                return
 
-            with concurrent.futures.ProcessPoolExecutor(
-                max_workers=len(component_info["topic_sets"]) + 1
-            ) as pool:
-                producer_set = []
-                for topic_set in component_info["topic_sets"]:
-                    producer_set.append(
-                        loop.run_in_executor(
-                            pool,
-                            functools.partial(
-                                cls.create_process,
-                                kafka_config=kafka_config,
-                                component=component_info["component"],
-                                add_ackcmd=topic_set.get("add_ackcmd", False),
-                                commands=topic_set.get("commands", []),
-                                events=topic_set.get("events", []),
-                                telemetry=topic_set.get("telemetry", []),
-                                log_level=args.log_level,
-                                queue_len=component_info.get(
-                                    "queue_len", salobj.topics.DEFAULT_QUEUE_LEN
-                                ),
-                            ),
-                        )
-                    )
-
-                # In case one of the parallel producers fails, need to cancel
-                # all the others and exit. This will process any task that
-                # finished and then, proceed to cancel the remaining.
-                main_tasks = [wait_forever_task] + producer_set
-
-                for completed in asyncio.as_completed(main_tasks):
-                    try:
-                        await completed
-                    except asyncio.CancelledError:
-                        print("Terminating process.")
-                    except Exception:
-                        traceback.print_exc()
-                    finally:
-                        break
-
-                # If we get here, it means that it either received a term
-                # signal or one of the child processes failed.
-                # Now it need to send each remaining child process a TERM
-                # signal as well, before exiting.
-                # Gather information about remaining child processes and send
-                # signal.
-
-                # This is the parent process id.
-                parent = psutil.Process(os.getpid())
-
-                # Child process ids.
-                children = parent.children(recursive=True)
-
-                # Send SIGTERM regardless of what signal was received. This
-                # is the safest signal.
-                for process in children:
-                    print(f"Killing child process {process}.")
-                    process.send_signal(signal.SIGTERM)
-
-                # Wait for processes to terminate, skip any exception
-                print("Waiting for child processes to finish.")
-                await asyncio.gather(*producer_set, return_exceptions=True)
-                print("Done")
+            producer_set = cls(kafka_config=kafka_config, log_level=args.log_level)
+            await producer_set.run_distributed_producer(topic_names_set=topic_names_set)
 
     @classmethod
-    def create_process(
+    async def create_producer_subprocess(
         cls,
+        *,
         kafka_config,
         component,
-        add_ackcmd,
-        commands,
-        events,
-        telemetry,
+        index,
+        topic_names,
         log_level,
-        queue_len,
+        started_queue,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
     ):
-        loop = asyncio.new_event_loop()
+        """Create and run a producer for a subset of one SAL component's
+        topics.
 
-        asyncio.set_event_loop(loop)
+        Parameters
+        ----------
+        kafka_config : `KafkaConfig`
+            Kafka configuration.
+        component : `str`
+            Name of a SAL component for which to handle a subset of topics.
+        index : `int`
+            Index of topic_names in TopicNamesSet;
+            identifies this sub-producers.
+        topic_names : `TopicNames`
+            Topic names.
+        log_level : `int`, optional
+            Log level, e.g. logging.INFO.
+        started_queue : `multiprocessing.Queue`
+            A queue to which to publish the index
+            when this producer has started running.
+        queue_len : `int`, optional
+            Length of the DDS read queue. Must be greater than or equal to
+            `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
+        """
+        producer_set = cls(kafka_config=kafka_config, log_level=log_level)
 
-        producer_set = cls(
-            kafka_config=kafka_config,
-            component=component,
-            components=[],
-            add_ackcmd=add_ackcmd,
-            commands=commands,
-            events=events,
-            telemetry=telemetry,
-            log_level=log_level,
-            queue_len=queue_len,
+        producer_set._run_producer_subprocess_task = asyncio.create_task(
+            producer_set.run_producer_subprocess(
+                producer_set=producer_set,
+                component=component,
+                index=index,
+                topic_names=topic_names,
+                started_queue=started_queue,
+                queue_len=queue_len,
+            )
         )
-        loop.run_until_complete(producer_set.done_task)
+
+        await producer_set._run_producer_subprocess_task
 
     @staticmethod
     def make_argument_parser():
@@ -354,16 +303,16 @@ class ComponentProducerSet:
         parser.add_argument(
             "--broker",
             dest="broker_url",
-            required=True,
             help="Kafka broker URL, without the transport. "
-            "Required. Example: 'my.kafka:9000'",
+            "Example 'my.kafka:9000'. "
+            "Required unless --validate or --show-schema are specified.",
         )
         parser.add_argument(
             "--registry",
             dest="registry_url",
-            required=True,
             help="Schema Registry URL, including the transport. "
-            "Required. Example: 'https://registry.my.kafka/'",
+            "Example: 'https://registry.my.kafka/'. "
+            "Required unless --validate or --show-schema are specified. ",
         )
         parser.add_argument(
             "--partitions",
@@ -421,140 +370,256 @@ class ComponentProducerSet:
 
         return parser
 
-    @classmethod
-    def validate(cls, filename):
-        """Load and validate input file.
+    async def run_distributed_producer(self, topic_names_set):
+        """Produce messages for one SAL component, distributing the topics
+        among multiple subprocesses.
 
         Parameters
         ----------
-        filename : `str`
-            Name of the file to load. Must be yaml file.
-
-        Returns
-        -------
-        components_info : `dict`
-            Dictionary with parsed data.
-
+        topic_names_set : `TopicNamesSet`
+            Component name and topic names list.
         """
-        # First step is to validate the input schema.
-        validator = jsonschema.Draft7Validator(cls.schema())
+        loop = asyncio.get_running_loop()
 
-        with open(filename) as fp:
-            components_info = yaml.safe_load(fp)
+        # Add handle for process termination signals
+        for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            loop.add_signal_handler(s, self.signal_handler)
 
-        validator.validate(components_info)
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=len(topic_names_set.topic_names_list)
+        ) as pool:
+            # One cannot simply pass multiprocessing.Queue()
+            # between processes; see
+            # https://stackoverflow.com/a/9928191/1653413
+            started_queue = multiprocessing.Manager().Queue()
+            for index, topic_names in enumerate(topic_names_set.topic_names_list):
+                self.producer_tasks.append(
+                    loop.run_in_executor(
+                        pool,
+                        functools.partial(
+                            asyncio_run_func,
+                            self.create_producer_subprocess,
+                            kafka_config=self.kafka_config,
+                            component=topic_names_set.component,
+                            index=index,
+                            topic_names=topic_names,
+                            log_level=self.log.getEffectiveLevel(),
+                            queue_len=topic_names_set.queue_len,
+                            started_queue=started_queue,
+                        ),
+                    )
+                )
 
-        # Make sure there is no topic left behind. Create a set with all the
-        # topics and remove them as they are added. If something is left in the
-        # control set at the end, it will be added to the set.
-        control_set = {
-            "add_ackcmd": True,
-            "commands": [],
-            "events": [],
-            "telemetry": [],
-        }
+            # Wait for all subprocesses to start
+            print("Waiting for partial producers to start")
+            try:
+                self._interruptable_start_task = asyncio.create_task(
+                    self.wait_partial_producers_started(
+                        num_producers=len(topic_names_set.topic_names_list),
+                        started_queue=started_queue,
+                    )
+                )
+                await self._interruptable_start_task
+                print("Partial producers are all running")
+                self.start_task.set_result(None)
 
-        component = components_info["component"]
-        topic_metadata = salobj.parse_idl(
-            component, idl.get_idl_dir() / f"sal_revCoded_{component}.idl"
-        )
-        for topic in topic_metadata.topic_info:
-            if topic.startswith("command_"):
-                control_set["commands"].append(topic[8:])
-            elif topic.startswith("logevent_"):
-                control_set["events"].append(topic[9:])
-            elif topic == "ackcmd":
-                pass
-            else:
-                control_set["telemetry"].append(topic)
+                # In case one of the parallel producers fails, need to cancel
+                # all the others and exit. This will process any task that
+                # finished and then, proceed to cancel the remaining.
+                main_tasks = [self._wait_forever_task] + self.producer_tasks
 
-        if len(control_set["commands"]) == 0:
-            control_set["add_ackcmd"] = False
+                for completed in asyncio.as_completed(main_tasks):
+                    try:
+                        await completed
+                    except asyncio.CancelledError:
+                        print("Terminating process.")
+                    except Exception:
+                        traceback.print_exc()
+                    finally:
+                        break
 
-        ack_added = False
-        for topic_set in components_info["topic_sets"]:
-            if topic_set.get("add_ackcmd", False) and not ack_added:
-                ack_added = True
-                control_set["add_ackcmd"] = False
-            elif topic_set.get("add_ackcmd", False) and ack_added:
-                raise RuntimeError("Ackcmd added multiple times.")
+            finally:
+                # Time to quit. We have received a term signal or one of the
+                # child processes has failed. Send each remaining child process
+                # a TERM signal, then exit.
+                print("Shutting down partial producers")
+                main_process = psutil.Process(os.getpid())
+                child_processes = main_process.children(recursive=True)
 
-            for topic_type in ["commands", "events", "telemetry"]:
-                for topic_name in topic_set.get(topic_type, []):
-                    if topic_name in control_set[topic_type]:
-                        control_set[topic_type].remove(topic_name)
-                    elif topic_name not in control_set[topic_type]:
-                        raise RuntimeError(
-                            f"Topic {topic_name} unrecognized or already included in {topic_type}."
-                        )
+                # Send SIGTERM regardless of what signal was received, because
+                # it is not safe to send SIGKILL to a process that uses DDS.
+                for process in child_processes:
+                    print(f"Killing child process {process.pid}.")
+                    process.send_signal(signal.SIGTERM)
 
-        if control_set["add_ackcmd"] or any(
-            [
-                len(control_set[topic_type]) > 0
-                for topic_type in ["commands", "events", "telemetry"]
-            ]
-        ):
-            print(
-                "Some topics where not included in the list. Adding them in post process."
+                # Wait for processes to terminate, on a "best effort" basis,
+                # so ignore exceptions.
+                print("Waiting for partial producer processes to finish.")
+                await asyncio.gather(*self.producer_tasks, return_exceptions=True)
+                print("Done")
+
+    async def run_producers(
+        self, *, components, queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
+    ):
+        """Create and run component producers for one or more SAL components.
+
+        This version produces all topics for each component.
+
+        Parameters
+        ----------
+        components : `List` [`str`]
+            Names of SAL components for which to produce Kafka messages.
+        queue_len : `int`, optional
+            Length of the DDS read queue. Must be greater than or equal to
+            `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
+
+        Raises
+        ------
+        ValueError
+            If components contains duplicate names.
+        RuntimeError
+            If there is no IDL file for one of the components.
+        """
+        components_set = set(components)
+        if len(components_set) < len(components):
+            raise ValueError(f"components={components} has duplicates")
+        async with salobj.Domain() as domain, KafkaProducerFactory(
+            config=self.kafka_config, log=self.log,
+        ) as kafka_factory:
+            self.log.info(f"Creating producers for {components}")
+            self.domain = domain
+            self.kafka_factory = kafka_factory
+
+            self.producers = []
+            for component in components:
+                self.producers.append(
+                    ComponentProducer(
+                        domain=domain,
+                        component=component,
+                        kafka_factory=kafka_factory,
+                        queue_len=queue_len,
+                    )
+                )
+
+            loop = asyncio.get_running_loop()
+            for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+                loop.add_signal_handler(s, self.signal_handler)
+
+            try:
+                if self._wait_forever_task.done():
+                    self.log.warning("Cancelled before waiting for producer to start")
+                else:
+                    self.log.info("Waiting for producers to start")
+                    self._interruptable_start_task = asyncio.gather(
+                        *[producer.start_task for producer in self.producers]
+                    )
+                    await self._interruptable_start_task
+                    self.log.info("Running")
+                    self.start_task.set_result(None)
+                    self.semaphore_file.touch()
+                    await self._wait_forever_task
+            except asyncio.CancelledError:
+                self.log.info("Shutting down")
+                for producer in self.producers:
+                    await producer.close()
+
+        if self.semaphore_file.exists():
+            self.semaphore_file.unlink()
+
+        self.log.info("Done")
+
+    async def run_producer_subprocess(
+        self,
+        producer_set,
+        component,
+        index,
+        topic_names,
+        started_queue,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
+    ):
+        """Run a producer subprocess created by create_producer_subprocess.
+
+        This is a separate method so it can be interrupted with
+        the signal handler (which otherwise could not easily interrupt
+        the creation of salobj.Domain and KafkaProducerFactory).
+        """
+        loop = asyncio.get_running_loop()
+        for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            loop.add_signal_handler(s, self.signal_handler)
+
+        async with salobj.Domain() as domain, KafkaProducerFactory(
+            config=self.kafka_config, log=self.log,
+        ) as kafka_factory:
+            self.domain = domain
+            self.kafka_factory = kafka_factory
+
+            self.log.info(
+                f"Creating partial producer {index} for {component}: "
+                f"[add_ackcmd: {topic_names.add_ackcmd}] "
+                f"[commands: {topic_names.commands}] "
+                f"[events: {topic_names.events}] "
+                f"[telemetry: {topic_names.telemetry}] "
             )
-            components_info["topic_sets"].append(control_set)
 
-        return components_info
+            self.producers = [
+                ComponentProducer(
+                    domain=domain,
+                    component=component,
+                    kafka_factory=kafka_factory,
+                    queue_len=queue_len,
+                    topic_names=topic_names,
+                )
+            ]
 
-    @staticmethod
-    def schema():
-        return yaml.safe_load(
-            f"""
-        $schema: http://json-schema.org/draft-07/schema#
-        $id: https://github.com/lsst-ts/ts_salkafka/salkafka.yaml
-        description: Configuration for the salkafka producer.
-        type: object
-        additionalProperties: false
-        properties:
-          component:
-            description: Name of SAL component, e.g. "Test".
-            type: string
-          queue_len:
-            description: Length of the python queue on the topic readers.
-            type: integer
-            exclusiveMinimum: {salobj.topics.DEFAULT_QUEUE_LEN}
-          topic_sets:
-            type: array
-            items:
-              type: object
-              additionalProperties: false
-              properties:
-                add_ackcmd:
-                  description: Add command acknowledgements?
-                  type: boolean
-                commands:
-                  description: >-
-                    List of commands to add to producer. To add all set it to
-                    "*".
-                  anyOf:
-                    - type: array
-                      items:
-                        type: string
-                    - type: string
-                events:
-                  description: >-
-                    List of events to add to producer. To add all set it to
-                    "*".
-                  anyOf:
-                    - type: array
-                      items:
-                        type: string
-                    - type: string
-                telemetry:
-                  description: >-
-                    List of telemtry to add to producer. To add all set it to
-                    "*".
-                  anyOf:
-                    - type: array
-                      items:
-                        type: string
-                    - type: string
-        required:
-          - component
+            try:
+                if not self._wait_forever_task.done():
+                    self.log.info(f"Waiting for partial producer {index} to start")
+                    self._interruptable_start_task = asyncio.gather(
+                        *[producer.start_task for producer in self.producers]
+                    )
+                    await self._interruptable_start_task
+                    self.start_task.set_result(None)
+                    started_queue.put(index)
+                    self.log.info(f"Partial producer {index} running")
+                    self.semaphore_file.touch()
+                    await self._wait_forever_task
+            except asyncio.CancelledError:
+                self.log.info(f"Partial producer {index} shutting down")
+                for producer in self.producers:
+                    await producer.close()
+
+        if self.semaphore_file.exists():
+            self.semaphore_file.unlink()
+
+        self.log.info(f"Partial producer {index} done")
+
+    def signal_handler(self):
+        print("Signal handler")
+        self._run_producer_subprocess_task.cancel()
+        self._interruptable_start_task.cancel()
+        self._wait_forever_task.cancel()
+
+    async def wait_partial_producers_started(self, num_producers, started_queue):
+        """Wait for all partial producers to report that they have started.
+
+        Parameters
+        ----------
+        num_producers : `int`
+            The number of partial producers to wait for
+        started_queue : `multiprocessing.Queue`
+            Queue that receives started notifications,
+            as the index of ach ppartial producer that has started.
         """
-        )
+        to_be_started_indices = set(range(num_producers))
+        while to_be_started_indices:
+            try:
+                index = started_queue.get_nowait()
+            except queue.Empty:
+                await asyncio.sleep(0.1)
+                continue
+            try:
+                to_be_started_indices.remove(index)
+            except KeyError:
+                self.log.warning(
+                    f"Partial producer {index} reported as started more than once"
+                )
