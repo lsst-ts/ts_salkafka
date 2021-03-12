@@ -22,7 +22,6 @@
 __all__ = ["TopicProducer"]
 
 import asyncio
-import time
 
 from lsst.ts import salobj
 from .make_avro_schema import make_avro_schema
@@ -74,7 +73,7 @@ class TopicProducer:
             DDS sample.
         """
         avro_data = data.get_vars()
-        avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
+        avro_data["private_kafkaStamp"] = salobj.current_tai()
         await self.kafka_producer.send_and_wait(
             self.avro_schema["name"], value=avro_data
         )
