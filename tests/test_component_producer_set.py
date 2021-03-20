@@ -24,7 +24,6 @@ import subprocess
 import pathlib
 import unittest
 
-import asynctest
 import numpy as np
 
 from lsst.ts import salobj
@@ -40,7 +39,7 @@ CLOSE_TIMEOUT = 10
 START_TIMEOUT = 60
 
 
-class ComponentProducerSetTestCase(asynctest.TestCase):
+class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
     def run(self, result=None):
         """Override `run` to insert mocks for every test.
 
@@ -49,7 +48,7 @@ class ComponentProducerSetTestCase(asynctest.TestCase):
         with salkafka.mocks.insert_all_mocks():
             super().run(result)
 
-    async def setUp(self):
+    def setUp(self):
         salobj.set_random_lsst_dds_partition_prefix()
         self.data_dir = pathlib.Path(__file__).parent / "data" / "topic_names_sets"
 

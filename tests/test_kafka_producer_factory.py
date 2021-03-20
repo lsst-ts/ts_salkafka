@@ -22,12 +22,10 @@
 import logging
 import unittest
 
-import asynctest
-
 from lsst.ts import salkafka
 
 
-class KafkaProducerFactoryTestCase(asynctest.TestCase):
+class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         # Make a valid KafkaConfiguration argument dict with arbitrary data
         self.config_kwargs = dict(

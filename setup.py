@@ -5,7 +5,6 @@ tests_require = [
     "pytest",
     "pytest-cov",
     "pytest-flake8",
-    "asynctest",
     "kafkit[aiohttp]",
     "aiokafka",
     "confluent_kafka",

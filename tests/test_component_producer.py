@@ -24,7 +24,6 @@ import contextlib
 import logging
 import unittest
 
-import asynctest
 import numpy as np
 
 from lsst.ts import salobj
@@ -33,7 +32,7 @@ from lsst.ts import salkafka
 np.random.seed(47)
 
 
-class ComponentProducerTestCase(asynctest.TestCase):
+class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
     def run(self, result=None):
         """Override `run` to insert mocks for every test.
 
