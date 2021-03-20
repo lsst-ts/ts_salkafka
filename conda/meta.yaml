@@ -4,18 +4,10 @@ package:
   version: {{ data.get('version') }}
 
 source:
-  git_url: https://github.com/lsst-ts/ts_salkafka
-  git_rev: {{ TS_SALKAFKA_VERSION }}
+  path: ../
 
 build:
-  script: python -m pip install --ignore-installed .
-  skip: True #[win]
-
-test:
-  requires:
-    - ts-conda-build
-    - ts-idl {{ idl_version }}
-    - ts-salobj {{ salobj_version }}
+  script: python -m pip install --no-deps --ignore-installed .
 
 requirements:
   host:
