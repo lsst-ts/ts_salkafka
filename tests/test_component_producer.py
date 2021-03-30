@@ -74,7 +74,10 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
             replication_factor=replication_factor,
             wait_for_ack=wait_for_ack,
         )
-        kafka_factory = salkafka.KafkaProducerFactory(config=kafka_config, log=log,)
+        kafka_factory = salkafka.KafkaProducerFactory(
+            config=kafka_config,
+            log=log,
+        )
         self.component_producer = salkafka.ComponentProducer(
             domain=self.csc.domain, component="Test", kafka_factory=kafka_factory
         )

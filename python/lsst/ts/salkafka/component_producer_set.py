@@ -125,7 +125,9 @@ class ComponentProducerSet:
     """
 
     def __init__(
-        self, kafka_config, log_level=logging.INFO,
+        self,
+        kafka_config,
+        log_level=logging.INFO,
     ):
         self.kafka_config = kafka_config
 
@@ -286,8 +288,7 @@ class ComponentProducerSet:
 
     @staticmethod
     def make_argument_parser():
-        """Make a command-line argument parser.
-        """
+        """Make a command-line argument parser."""
         parser = argparse.ArgumentParser(
             description="Send DDS messages to Kafka for one or more SAL components"
         )
@@ -459,7 +460,10 @@ class ComponentProducerSet:
                 print("Done")
 
     async def run_producers(
-        self, *, components, queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
+        self,
+        *,
+        components,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
     ):
         """Create and run component producers for one or more SAL components.
 
@@ -484,7 +488,8 @@ class ComponentProducerSet:
         if len(components_set) < len(components):
             raise ValueError(f"components={components} has duplicates")
         async with salobj.Domain() as domain, KafkaProducerFactory(
-            config=self.kafka_config, log=self.log,
+            config=self.kafka_config,
+            log=self.log,
         ) as kafka_factory:
             self.log.info(f"Creating producers for {components}")
             self.domain = domain
@@ -548,7 +553,8 @@ class ComponentProducerSet:
             loop.add_signal_handler(s, self.signal_handler)
 
         async with salobj.Domain() as domain, KafkaProducerFactory(
-            config=self.kafka_config, log=self.log,
+            config=self.kafka_config,
+            log=self.log,
         ) as kafka_factory:
             self.domain = domain
             self.kafka_factory = kafka_factory

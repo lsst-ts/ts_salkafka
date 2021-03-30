@@ -56,7 +56,12 @@ class KafkaConfiguration:
     """
 
     def __init__(
-        self, broker_url, registry_url, partitions, replication_factor, wait_for_ack,
+        self,
+        broker_url,
+        registry_url,
+        partitions,
+        replication_factor,
+        wait_for_ack,
     ):
         self.broker_url = broker_url
         self.registry_url = registry_url
@@ -100,8 +105,7 @@ class KafkaProducerFactory:
         self.start_task = asyncio.ensure_future(self.start())
 
     async def start(self):
-        """Start the Kafka clients.
-        """
+        """Start the Kafka clients."""
         self.log.info("Making avro schema registry.")
         connector = aiohttp.TCPConnector(limit_per_host=20)
         self.http_session = aiohttp.ClientSession(connector=connector)
@@ -110,8 +114,7 @@ class KafkaProducerFactory:
         )
 
     async def close(self):
-        """Close the Kafka clients.
-        """
+        """Close the Kafka clients."""
         if self.http_session is not None:
             await self.http_session.close()
 

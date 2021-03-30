@@ -80,7 +80,8 @@ class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
         log = logging.getLogger()
 
         async with salkafka.KafkaProducerFactory(
-            config=config, log=log,
+            config=config,
+            log=log,
         ) as kafka_factory:
             avro_schema = {
                 "name": topic_name,

@@ -49,15 +49,13 @@ class TopicProducer:
         self.start_task = asyncio.ensure_future(self.start())
 
     async def close(self):
-        """Close the Kafka producer.
-        """
+        """Close the Kafka producer."""
         if self.kafka_producer is not None:
             self.log.debug("Closing kafka producer")
             await self.kafka_producer.stop()
 
     async def start(self):
-        """Start the Kafka producer.
-        """
+        """Start the Kafka producer."""
         self.log.debug("Making kafka producer")
         self.kafka_producer = await self.kafka_factory.make_producer(
             avro_schema=self.avro_schema

@@ -33,8 +33,7 @@ from . import kafka_producer_factory
 
 
 class MockKafkitRegistryApi:
-    """Mock `kafkit.registry.aiohttp.RegistryApi`.
-    """
+    """Mock `kafkit.registry.aiohttp.RegistryApi`."""
 
     def __init__(self, session, url):
         self.session = session
@@ -47,8 +46,7 @@ class MockKafkitRegistryApi:
 
 
 class MockAIOKafkaProducer:
-    """Mock `aiokafka.AIOKafkaProducer`.
-    """
+    """Mock `aiokafka.AIOKafkaProducer`."""
 
     def __init__(self, *, loop, bootstrap_servers, acks, value_serializer, **kwargs):
         self.loop = loop
@@ -134,8 +132,7 @@ _REAL_CLASSES = dict(
 
 @contextlib.contextmanager
 def insert_all_mocks(*args, **kwds):
-    """Context manager to replace all real classes with mocks.
-    """
+    """Context manager to replace all real classes with mocks."""
     try:
         for name, MockClass in _MOCK_CLASSES.items():
             setattr(kafka_producer_factory, name, MockClass)

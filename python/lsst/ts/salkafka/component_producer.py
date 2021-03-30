@@ -150,7 +150,9 @@ class ComponentProducer:
 
             for topic_name, sal_prefix in topic_name_prefixes:
                 self._make_topic(
-                    name=topic_name, sal_prefix=sal_prefix, queue_len=queue_len,
+                    name=topic_name,
+                    sal_prefix=sal_prefix,
+                    queue_len=queue_len,
                 )
             self.start_task = asyncio.ensure_future(self.start())
         except Exception:
@@ -185,8 +187,7 @@ class ComponentProducer:
         self.topic_producers[topic.attr_name] = producer
 
     async def start(self):
-        """Start the contained `lsst.ts.salobj.SalInfo` and Kafka producers.
-        """
+        """Start the contained `lsst.ts.salobj.SalInfo` and Kafka producers."""
         self.log.debug("starting")
         await self.salinfo.start()
         await asyncio.gather(

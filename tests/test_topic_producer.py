@@ -83,7 +83,10 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
             replication_factor=3,
             wait_for_ack=1,
         )
-        kafka_factory = salkafka.KafkaProducerFactory(config=kafka_config, log=log,)
+        kafka_factory = salkafka.KafkaProducerFactory(
+            config=kafka_config,
+            log=log,
+        )
 
         # We are not sure we can construct the topic producer
         # because the topic data may be invalid),

@@ -49,7 +49,11 @@ class TopicNames:
     """
 
     def __init__(
-        self, add_ackcmd=False, commands=(), events=(), telemetry=(),
+        self,
+        add_ackcmd=False,
+        commands=(),
+        events=(),
+        telemetry=(),
     ):
         self.add_ackcmd = bool(add_ackcmd)
         self.commands = sorted(commands)

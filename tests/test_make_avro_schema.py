@@ -35,8 +35,7 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
         np.random.seed(47)
 
     async def test_arrays(self):
-        """Test the arrays event for the Test SAL component.
-        """
+        """Test the arrays event for the Test SAL component."""
         index = next(index_gen)
         async with salobj.Domain() as domain:
             salinfo = salobj.SalInfo(domain=domain, name="Test", index=index)
@@ -115,8 +114,7 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                         pass
 
     async def test_scalars(self):
-        """Test the scalars event for the Test SAL component.
-        """
+        """Test the scalars event for the Test SAL component."""
         index = next(index_gen)
         async with salobj.Domain() as domain:
             salinfo = salobj.SalInfo(domain=domain, name="Test", index=index)

@@ -179,13 +179,19 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
 
         print("bad_kafka_arg_list =", bad_kafka_arg_list)
         proc = await asyncio.create_subprocess_exec(
-            "run_salkafka_producer.py", "Test", "Script", *bad_kafka_arg_list,
+            "run_salkafka_producer.py",
+            "Test",
+            "Script",
+            *bad_kafka_arg_list,
         )
         await asyncio.wait_for(proc.wait(), timeout=START_TIMEOUT)
         self.assertNotEqual(proc.returncode, 0)
 
         proc = await asyncio.create_subprocess_exec(
-            "run_salkafka_producer.py", "--file", str(good_path), *bad_kafka_arg_list,
+            "run_salkafka_producer.py",
+            "--file",
+            str(good_path),
+            *bad_kafka_arg_list,
         )
         await asyncio.wait_for(proc.wait(), timeout=START_TIMEOUT)
         self.assertNotEqual(proc.returncode, 0)
