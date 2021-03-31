@@ -85,7 +85,10 @@ def make_avro_schema(topic):
         else:
             # Field is a scalar.
             avro_field_type = _SCALAR_TYPE_DICT[type(field_data)]
-        field_entry = dict(name=field_name, type=avro_field_type,)
+        field_entry = dict(
+            name=field_name,
+            type=avro_field_type,
+        )
 
         # Add description and units metadata, if available.
         field_metadata = topic_metadata.field_info.get(field_name)

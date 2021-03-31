@@ -22,7 +22,6 @@
 __all__ = ["TopicProducer"]
 
 import asyncio
-import time
 
 from lsst.ts import salobj
 from .make_avro_schema import make_avro_schema
@@ -35,32 +34,30 @@ class TopicProducer:
     ----------
     topic : `salobj.topics.ReadTopic`
         Topic for which to produce kafka messages.
-    kafka_info : `KafkaInfo`
+    kafka_factory : `KafkaProducerFactory`
         Information and clients for using Kafka.
     log : `logging.Logger`
         Parent log.
     """
 
-    def __init__(self, topic, kafka_info, log):
+    def __init__(self, topic, kafka_factory, log):
         self.topic = topic
-        self.kafka_info = kafka_info
+        self.kafka_factory = kafka_factory
         self.log = log.getChild(topic.sal_name)
         self.kafka_producer = None
         self.avro_schema = make_avro_schema(topic)
         self.start_task = asyncio.ensure_future(self.start())
 
     async def close(self):
-        """Close the Kafka producer.
-        """
+        """Close the Kafka producer."""
         if self.kafka_producer is not None:
             self.log.debug("Closing kafka producer")
             await self.kafka_producer.stop()
 
     async def start(self):
-        """Start the Kafka producer.
-        """
+        """Start the Kafka producer."""
         self.log.debug("Making kafka producer")
-        self.kafka_producer = await self.kafka_info.make_producer(
+        self.kafka_producer = await self.kafka_factory.make_producer(
             avro_schema=self.avro_schema
         )
         self.topic.callback = self
@@ -74,7 +71,7 @@ class TopicProducer:
             DDS sample.
         """
         avro_data = data.get_vars()
-        avro_data["private_kafkaStamp"] = salobj.tai_from_utc(time.time())
+        avro_data["private_kafkaStamp"] = salobj.current_tai()
         await self.kafka_producer.send_and_wait(
             self.avro_schema["name"], value=avro_data
         )
