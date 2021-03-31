@@ -3,13 +3,13 @@
 This configuration only affects single-package Sphinx documentation builds.
 """
 
-from documenteer.sphinxconfig.stackconf import build_package_configs
-import lsst.ts.salkafka
+from documenteer.conf.pipelinespkg import *  # noqa
+import lsst.ts.salkafka  # noqa
 
+project = "ts_salkafka"
+html_theme_options["logotext"] = project  # noqa
+html_title = project
+html_short_title = project
+doxylink = {}  # Avoid warning: Could not find tag file _doxygen/doxygen.tag
 
-_g = globals()
-_g.update(
-    build_package_configs(
-        project_name="ts_salkafka", version=lsst.ts.salkafka.__version__
-    )
-)
+intersphinx_mapping["ts_salobj"] = ("https://ts-salobj.lsst.io", None)  # noqa

@@ -1,0 +1,12 @@
+component: Test
+queue_len: 2500
+topic_sets:
+  - add_ackcmd: true
+    commands:
+      - setArrays
+      - setScalars
+  - add_ackcmd: true
+    events:
+      - arrays
+    telemetry:
+      - scalars

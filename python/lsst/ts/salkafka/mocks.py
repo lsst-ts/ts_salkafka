@@ -29,12 +29,11 @@ __all__ = [
 import contextlib
 import types
 
-from . import kafka_info
+from . import kafka_producer_factory
 
 
 class MockKafkitRegistryApi:
-    """Mock `kafkit.registry.aiohttp.RegistryApi`.
-    """
+    """Mock `kafkit.registry.aiohttp.RegistryApi`."""
 
     def __init__(self, session, url):
         self.session = session
@@ -47,8 +46,7 @@ class MockKafkitRegistryApi:
 
 
 class MockAIOKafkaProducer:
-    """Mock `aiokafka.AIOKafkaProducer`.
-    """
+    """Mock `aiokafka.AIOKafkaProducer`."""
 
     def __init__(self, *, loop, bootstrap_servers, acks, value_serializer, **kwargs):
         self.loop = loop
@@ -127,17 +125,18 @@ _MOCK_CLASSES = dict(
 )
 
 # dict of class name: real class
-_REAL_CLASSES = dict((name, getattr(kafka_info, name)) for name in _MOCK_CLASSES)
+_REAL_CLASSES = dict(
+    (name, getattr(kafka_producer_factory, name)) for name in _MOCK_CLASSES
+)
 
 
 @contextlib.contextmanager
 def insert_all_mocks(*args, **kwds):
-    """Context manager to replace all real classes with mocks.
-    """
+    """Context manager to replace all real classes with mocks."""
     try:
         for name, MockClass in _MOCK_CLASSES.items():
-            setattr(kafka_info, name, MockClass)
+            setattr(kafka_producer_factory, name, MockClass)
         yield
     finally:
         for name, RealClass in _REAL_CLASSES.items():
-            setattr(kafka_info, name, RealClass)
+            setattr(kafka_producer_factory, name, RealClass)

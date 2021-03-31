@@ -1,0 +1,12 @@
+component: Test
+queue_len: 2500
+topic_sets:
+  - commands:
+      - setArrays
+      - setScalars
+    telemetry:
+      - scalars
+  - events:
+      - arrays
+    telemetry:
+      - scalars

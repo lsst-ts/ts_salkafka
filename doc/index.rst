@@ -6,53 +6,89 @@
 lsst.ts.salkafka
 ################
 
-Forward DDS samples from one or more SAL components to a Kafka broker, to populate databases.
+.. image:: https://img.shields.io/badge/GitHub-gray.svg
+    :target: https://github.com/lsst-ts/ts_salkafka
+.. image:: https://img.shields.io/badge/Jira-gray.svg
+    :target: https://jira.lsstcorp.org/issues/?jql=labels+%3D+ts_salkafka
 
-.. .. _lsst.ts.salkafka-using:
+.. _lsst.ts.salkafka-overview:
 
-Using lsst.ts.salkafka
-======================
+Overview
+========
 
-Run command-line script ``run_salkafka_producer.py`` to forward DDS samples from the specified SAL comonents to Kafka.
+ts_salkafka is a service to monitor SAL/DDS data from SAL components and forward it to a Kafka broker.
+Other code reads the Kafka messages from the broker and populates the engineering facilities database (EFD).
+
+One SAL/Kafka producer service can monitor data for multiple SAL components, as long as they are not too chatty.
+For very chatty SAL components, such as MTM1M3, it is best to run a single producer
+with topics divided among subprocesses, using the ``--file`` option described below.
+
+.. _lsst.ts.salkafka-user_guide:
+
+User Guide
+==========
+
+Use command-line script ``run_salkafka_producer.py`` to run a producer service that forwards DDS samples from specified SAL comonents to Kafka.
+There are two examples below.
 Run with ``--help`` for information about the arguments.
-The script logs to stderr.
-You may run as many instances as you like.
+Producers log to stderr.
 
-To stop a producer, terminate its process or use ctrl-C.
+To stop a producer, terminate its process with SIGTERM (not SIGKILL) or use ctrl-C.
 
-Until performance is tested, my best guess is that one producer should forward no more than 1000 messages per second, on average.
-This is based on the fact that ts_salobj can send and receive roughly 5000 topics/second using one process on a modern iMac.
-This suggests that it should be fine to use one producer for many SAL components as long as none of them is very chatty.
+For most SAL components it is reasonable to use one producer to handle multiple components.
+Here is an example (with nonsense kafka arguments)::
 
-Requirements
-============
+    run_salkafka_producer.py MTDome MTDomeTrajectory --broker test.kafka:9000 --registry https://registry.test.kafka/
 
-Third party packages (all pip-installable):
+For a few chatty components, such as MTM1M3, you must dedicate one producer to that component,
+splitting its topics among subprocesses by using the ``--file`` argument
+with a configuration file that specifies how to divide the topics.
+Here is an example (with nonsense kafka arguments)::
 
-* aiohttp
-* aiokafka
-* confluent-kafka
-* kafkit
+    run_salkafka_producer.py --file MTM1M3.yaml --broker test.kafka:9000 --registry https://registry.test.kafka/
 
-LSST packages:
+where MTM1M3.yaml contains::
 
-* ts_salobj
-* ts_idl
-* Built IDL files for all components you want to monitor.
+    component: MTM1M3
+    queue_len: 1000
+    topic_sets:
+      - events:
+          - appliedCylinderForces
+      - events:
+          - hardpointActuatorWarning
+      - events:
+          - hardpointMonitorWarning
+      - telemetry:
+          - forceActuatorData
+      - telemetry:
+          - inclinometerData
+      - telemetry:
+          - outerLoopData
+      - telemetry:
+          - accelerometerData
+      - telemetry:
+          - hardpointActuatorData
+      - telemetry:
+          - imsData
+      - telemetry:
+          - gyroData
+      - telemetry:
+          - powerSupplyData
+      - telemetry:
+          - pidData
+      - telemetry:
+          - hardpointMonitorData
 
-.. _lsst.ts.salkafka-contributing:
+You will be able to tell if you ask a producer to do too much,
+because you will see log messages about falling behind,
+possibly followed by log messages about losing data.
 
-Contributing
-============
+Developer Guide
+===============
 
-``lsst.ts.salkafka`` is developed at https://github.com/lsst-ts/ts_salkafka.
-You can find Jira issues for this module using `labels=ts_salkafka <https://jira.lsstcorp.org/issues/?jql=project%20%3D%20DM%20AND%20labels%20%20%3D%20ts_salkafka>`_.
-
-Python API reference
-====================
-
-.. automodapi:: lsst.ts.salkafka
-   :no-main-docstr:
+.. toctree::
+    developer_guide
+    :maxdepth: 1
 
 Version History
 ===============

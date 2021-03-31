@@ -1,3 +1,15 @@
+properties(
+    [
+    buildDiscarder
+        (logRotator (
+            artifactDaysToKeepStr: '',
+            artifactNumToKeepStr: '',
+            daysToKeepStr: '14',
+            numToKeepStr: '10'
+        ) ),
+    disableConcurrentBuilds()
+    ]
+)
 pipeline {
     agent any
     environment {
@@ -66,7 +78,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && eups declare -r . -t saluser && setup ts_salkafka -t saluser && scons\"
+                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && eups declare -r . -t saluser && setup ts_salkafka -t saluser && pytest --cov-report html:tests/.tests/pytest-ts_salkafka.xml-htmlcov/coverage.html --cov=lsst.ts.salkafka --junitxml=tests/.tests/junit.xml\"
                     """
                 }
             }

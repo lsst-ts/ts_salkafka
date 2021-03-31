@@ -22,12 +22,20 @@
 import logging
 import unittest
 
-import asynctest
-
 from lsst.ts import salkafka
 
 
-class KafkaInfoTestCase(asynctest.TestCase):
+class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # Make a valid KafkaConfiguration argument dict with arbitrary data
+        self.config_kwargs = dict(
+            broker_url="test.kafka:9000",
+            registry_url="https://registry.test.kafka/",
+            partitions=2,
+            replication_factor=3,
+            wait_for_ack="all",
+        )
+
     def run(self, result=None):
         """Override `run` to insert mocks for every test.
 
@@ -36,75 +44,52 @@ class KafkaInfoTestCase(asynctest.TestCase):
         with salkafka.mocks.insert_all_mocks():
             super().run(result)
 
-    async def test_constructor(self):
-        broker_url = "test.kafka:9000"
-        registry_url = "https://registry.test.kafka/"
-        partitions = 2
-        replication_factor = 3
-        wait_for_ack = "all"
-        log = logging.getLogger()
+    async def test_kafka_configuration(self):
+        kafka_config = salkafka.KafkaConfiguration(**self.config_kwargs)
+        for name, value in self.config_kwargs.items():
+            self.assertEqual(getattr(kafka_config, name), value)
 
-        async with salkafka.KafkaInfo(
-            broker_url=broker_url,
-            registry_url=registry_url,
-            partitions=partitions,
-            replication_factor=replication_factor,
-            wait_for_ack=wait_for_ack,
-            log=log,
-        ) as kafka_info:
-            self.assertEqual(kafka_info.broker_url, broker_url)
-            self.assertEqual(kafka_info.registry_url, registry_url)
-            self.assertEqual(kafka_info.replication_factor, replication_factor)
-            self.assertEqual(kafka_info.broker_url, broker_url)
-            self.assertEqual(kafka_info.wait_for_ack, wait_for_ack)
+        for name, bad_value in (
+            ("wait_for_ack", 2),
+            ("wait_for_ack", -1),
+            ("wait_for_ack", None),
+            ("wait_for_ack", "some"),
+        ):
+            bad_config_kwargs = self.config_kwargs.copy()
+            bad_config_kwargs[name] = bad_value
+            with self.assertRaises(ValueError):
+                salkafka.KafkaConfiguration(**bad_config_kwargs)
 
     async def test_make_kafka_topics(self):
-        broker_url = "test.kafka:9000"
-        registry_url = "https://registry.test.kafka/"
-        partitions = 1
-        replication_factor = 3
-        wait_for_ack = 1
+        config = salkafka.KafkaConfiguration(**self.config_kwargs)
         log = logging.getLogger()
 
-        async with salkafka.KafkaInfo(
-            broker_url=broker_url,
-            registry_url=registry_url,
-            partitions=partitions,
-            replication_factor=replication_factor,
-            wait_for_ack=wait_for_ack,
-            log=log,
-        ) as kafka_info:
+        async with salkafka.KafkaProducerFactory(
+            config=config, log=log
+        ) as kafka_factory:
             existing_topic_names = ["old_topic", "another_old_topic"]
-            kafka_info.broker_client.set_existing_topic_names(existing_topic_names)
+            kafka_factory.broker_client.set_existing_topic_names(existing_topic_names)
             new_topic_names = ["new_topic", "another_new_topic"]
             all_topic_names = existing_topic_names + new_topic_names
-            created_topic_names = kafka_info.make_kafka_topics(all_topic_names)
+            created_topic_names = kafka_factory.make_kafka_topics(all_topic_names)
             self.assertEqual(set(new_topic_names), set(created_topic_names))
 
     async def test_make_producer(self):
-        broker_url = "test.kafka:9000"
-        registry_url = "https://registry.test.kafka/"
         topic_name = "lsst.sal.Test.foo"
-        partitions = 1
-        replication_factor = 3
-        wait_for_ack = 0
+        config = salkafka.KafkaConfiguration(**self.config_kwargs)
         log = logging.getLogger()
 
-        async with salkafka.KafkaInfo(
-            broker_url=broker_url,
-            registry_url=registry_url,
-            partitions=partitions,
-            replication_factor=replication_factor,
-            wait_for_ack=wait_for_ack,
+        async with salkafka.KafkaProducerFactory(
+            config=config,
             log=log,
-        ) as kafka_info:
+        ) as kafka_factory:
             avro_schema = {
                 "name": topic_name,
                 "type": "record",
                 "fields": [{"name": "TestID", "type": "long"}],
             }
-            producer = await kafka_info.make_producer(avro_schema=avro_schema)
-            self.assertEqual(producer.bootstrap_servers, broker_url)
+            producer = await kafka_factory.make_producer(avro_schema=avro_schema)
+            self.assertEqual(producer.bootstrap_servers, config.broker_url)
             self.assertEqual(producer.sent_data, [])
             expected_name_value_list = []
             for i in range(10):

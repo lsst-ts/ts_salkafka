@@ -1,0 +1,9 @@
+queue_len: 2500
+topic_sets:
+  - commands:
+      - setArrays
+      - setScalars
+  - events:
+      - arrays
+    telemetry:
+      - scalars
