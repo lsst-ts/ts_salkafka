@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.7.0
+------
+
+* Add ``private_efdStamp`` field to Avro schema.
+
 v1.6.0
 ------
 
