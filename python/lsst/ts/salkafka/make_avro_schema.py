@@ -66,11 +66,19 @@ def make_avro_schema(topic):
 
     fields = [
         dict(
+            name="private_efdStamp",
+            type="double",
+            description="UTC time for EFD timestamp. "
+            "An integer (the number of leap seconds) "
+            "different from private_sndStamp.",
+            units="second",
+        ),
+        dict(
             name="private_kafkaStamp",
             type="double",
             description="TAI time at which the Kafka message was created.",
             units="second",
-        )
+        ),
     ]
     for field_name, field_data in data_dict.items():
         # Set Avro type from Python type because this is more robust than
