@@ -71,6 +71,7 @@ class TopicProducer:
             DDS sample.
         """
         avro_data = data.get_vars()
+        avro_data["private_efdStamp"] = salobj.utc_from_tai_unix(data.private_sndStamp)
         avro_data["private_kafkaStamp"] = salobj.current_tai()
         await self.kafka_producer.send_and_wait(
             self.avro_schema["name"], value=avro_data
