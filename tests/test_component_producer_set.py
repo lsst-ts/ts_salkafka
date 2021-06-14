@@ -22,6 +22,7 @@
 import asyncio
 import subprocess
 import pathlib
+import sys
 import unittest
 
 import numpy as np
@@ -279,19 +280,22 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             producer_task = asyncio.create_task(
                 producer_set.run_distributed_producer(topic_names_set=topic_names_set)
             )
-            print("Created task that runs run_distributed_producer; sleep briefly")
+            print(
+                "Created task that runs run_distributed_producer; sleep briefly",
+                file=sys.stderr,
+            )
             # Give the sub-producers time to begin starting
             await asyncio.sleep(0.1)
-            print("Done sleeping")
+            print("Done sleeping", file=sys.stderr)
         except Exception as e:
             print(f"Test failed with {e!r}")
         finally:
-            print("Call signal handler from unit test")
+            print("Call signal handler from unit test", file=sys.stderr)
             producer_set.signal_handler()
-            print("Signal handler done; wait for producer_task")
+            print("Signal handler done; wait for producer_task", file=sys.stderr)
             with self.assertRaises(asyncio.CancelledError):
                 await asyncio.wait_for(producer_task, timeout=STD_TIMEOUT)
-            print("Producer task cancelled, as expected")
+            print("Producer task cancelled, as expected", file=sys.stderr)
 
 
 if __name__ == "__main__":
