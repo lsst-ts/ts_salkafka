@@ -84,33 +84,4 @@ pipeline {
             }
         }
     }
-    post {
-        success{
-            sh """
-            docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && setup ts_salkafka -t saluser && package-docs build && pip install ltd-conveyor==0.5.0a1 && ltd upload --product ts-salkafka --git-ref ${branch_name} --dir doc/_build/html || echo Building documentation failed.... IGNORING... \"
-            """
-        }
-        always {
-            // The path of xml needed by JUnit is relative to
-            // the workspace.
-            junit 'tests/.tests/*.xml'
-
-            // Publish the HTML report
-            publishHTML (target: [
-                allowMissing: false,
-                alwaysLinkToLastBuild: false,
-                keepAll: true,
-                reportDir: 'tests/.tests/pytest-ts_salkafka.xml-htmlcov/',
-                reportFiles: 'index.html',
-                reportName: "Coverage Report"
-              ])
-        }
-        cleanup {
-            sh """
-                docker exec -u root --privileged \${container_name} sh -c \"chmod -R a+rw /home/saluser/repo/ \"
-                docker stop \${container_name}
-            """
-            deleteDir()
-        }
-    }
 }
