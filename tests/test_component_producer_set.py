@@ -279,14 +279,19 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             producer_task = asyncio.create_task(
                 producer_set.run_distributed_producer(topic_names_set=topic_names_set)
             )
-            print("Created task that runs run_distributed_producer")
+            print("Created task that runs run_distributed_producer; sleep briefly")
             # Give the sub-producers time to begin starting
             await asyncio.sleep(0.1)
+            print("Done sleeping")
+        except Exception as e:
+            print(f"Test failed with {e!r}")
         finally:
             print("Call signal handler from unit test")
             producer_set.signal_handler()
+            print("Signal handler done; wait for producer_task")
             with self.assertRaises(asyncio.CancelledError):
                 await asyncio.wait_for(producer_task, timeout=STD_TIMEOUT)
+            print("Producer task cancelled, as expected")
 
 
 if __name__ == "__main__":

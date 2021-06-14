@@ -600,10 +600,11 @@ class ComponentProducerSet:
         self.log.info(f"Partial producer {index} done")
 
     def signal_handler(self):
-        print("Signal handler")
+        print("ComponentProducerSet.signal_handler begins")
         self._run_producer_subprocess_task.cancel()
         self._interruptable_start_task.cancel()
         self._wait_forever_task.cancel()
+        print("ComponentProducerSet.signal_handler ends")
 
     async def wait_partial_producers_started(self, num_producers, started_queue):
         """Wait for all partial producers to report that they have started.
