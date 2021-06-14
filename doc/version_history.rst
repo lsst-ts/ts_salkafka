@@ -6,6 +6,13 @@
 Version History
 ###############
 
+v1.7.0
+------
+
+* Add private_efdStamp field to Kafka messages.
+  This is the time in private_sndStamp converted to UTC unix seconds.
+* Added timeouts to unit tests to prevent infinite hangs.
+
 v1.6.0
 ------
 
