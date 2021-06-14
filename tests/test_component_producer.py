@@ -31,6 +31,9 @@ from lsst.ts import salkafka
 
 np.random.seed(47)
 
+# Generous timeout to prevent hanging if something goes wrong (seconds)
+STD_TIMEOUT = 60
+
 
 class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
     def run(self, result=None):
@@ -82,17 +85,20 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
             domain=self.csc.domain, component="Test", kafka_factory=kafka_factory
         )
 
-        await asyncio.gather(
-            self.component_producer.start_task,
-            kafka_factory.start_task,
-            self.csc.start_task,
+        await asyncio.wait_for(
+            asyncio.gather(
+                self.component_producer.start_task,
+                kafka_factory.start_task,
+                self.csc.start_task,
+            ),
+            timeout=STD_TIMEOUT,
         )
         try:
             yield
         finally:
-            await self.csc.close()
-            await kafka_factory.close()
-            await self.component_producer.close()
+            await asyncio.wait_for(self.csc.close(), timeout=STD_TIMEOUT)
+            await asyncio.wait_for(kafka_factory.close(), timeout=STD_TIMEOUT)
+            await asyncio.wait_for(self.component_producer.close(), timeout=STD_TIMEOUT)
 
     async def test_basics(self):
         async with self.make_component_producer():
