@@ -19,14 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import asyncio
 import logging
 import unittest
 
 from lsst.ts import salkafka
-
-# Generous timeout to prevent hanging if something goes wrong (seconds)
-STD_TIMEOUT = 60
 
 
 class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
@@ -92,19 +88,14 @@ class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
                 "type": "record",
                 "fields": [{"name": "TestID", "type": "long"}],
             }
-            producer = await asyncio.wait_for(
-                kafka_factory.make_producer(avro_schema=avro_schema),
-                timeout=STD_TIMEOUT,
-            )
+            producer = await kafka_factory.make_producer(avro_schema=avro_schema)
             self.assertEqual(producer.bootstrap_servers, config.broker_url)
             self.assertEqual(producer.sent_data, [])
             expected_name_value_list = []
             for i in range(10):
                 value = {"TestID": i}
                 expected_name_value_list.append((topic_name, value))
-                await asyncio.wait_for(
-                    producer.send_and_wait(topic_name, value=value), timeout=STD_TIMEOUT
-                )
+                await producer.send_and_wait(topic_name, value=value)
             sent_name_value_list = [item[0:2] for item in producer.sent_data]
             self.assertEqual(sent_name_value_list, expected_name_value_list)
             for item in producer.sent_data:
@@ -113,10 +104,7 @@ class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
             invalid_value = {"unexpected_key": "some_value"}
             with self.assertRaises(Exception):
                 # the actual exception is not documented
-                await asyncio.wait_for(
-                    producer.send_and_wait(topic_name, value=invalid_value),
-                    timeout=STD_TIMEOUT,
-                )
+                await producer.send_and_wait(topic_name, value=invalid_value)
 
 
 if __name__ == "__main__":

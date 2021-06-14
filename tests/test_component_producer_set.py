@@ -31,8 +31,12 @@ from lsst.ts import salkafka
 
 np.random.seed(47)
 
-# Generous timeout to prevent hanging if something goes wrong (seconds)
-STD_TIMEOUT = 60
+# Time limit (sec) for closing a topic producer set
+CLOSE_TIMEOUT = 10
+
+# Time limit (sec) to start a component producer set,
+# whether distributed or not, from the command line or directly.
+START_TIMEOUT = 60
 
 
 class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
@@ -76,19 +80,16 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_cmdline_validate_good(self):
         good_path = self.data_dir / "good_two_partitions.yaml"
-        proc = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
-                "run_salkafka_producer.py",
-                "--file",
-                str(good_path),
-                "--validate",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            ),
-            timeout=STD_TIMEOUT,
+        proc = await asyncio.create_subprocess_exec(
+            "run_salkafka_producer.py",
+            "--file",
+            str(good_path),
+            "--validate",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=STD_TIMEOUT
+            proc.communicate(), timeout=START_TIMEOUT
         )
         self.assertEqual(proc.returncode, 0, msg=stderr_bytes.decode())
 
@@ -101,45 +102,36 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             "bad_invalid_field.yaml",  # Does not match the schema
         ):
             bad_path = self.data_dir / bad_name
-            proc = await asyncio.wait_for(
-                asyncio.create_subprocess_exec(
-                    "run_salkafka_producer.py",
-                    "--file",
-                    str(bad_path),
-                    "--validate",
-                    stdout=subprocess.PIPE,  # Swallow the error message
-                    stderr=subprocess.PIPE,
-                ),
-                timeout=STD_TIMEOUT,
-            )
-            await asyncio.wait_for(proc.wait(), timeout=STD_TIMEOUT)
-            self.assertNotEqual(proc.returncode, 0)
-
-        # Missing --file
-        proc = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
+            proc = await asyncio.create_subprocess_exec(
                 "run_salkafka_producer.py",
+                "--file",
+                str(bad_path),
                 "--validate",
                 stdout=subprocess.PIPE,  # Swallow the error message
                 stderr=subprocess.PIPE,
-            ),
-            timeout=STD_TIMEOUT,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=START_TIMEOUT)
+            self.assertNotEqual(proc.returncode, 0)
+
+        # Missing --file
+        proc = await asyncio.create_subprocess_exec(
+            "run_salkafka_producer.py",
+            "--validate",
+            stdout=subprocess.PIPE,  # Swallow the error message
+            stderr=subprocess.PIPE,
         )
-        await asyncio.wait_for(proc.wait(), timeout=STD_TIMEOUT)
+        await asyncio.wait_for(proc.wait(), timeout=START_TIMEOUT)
         self.assertNotEqual(proc.returncode, 0)
 
     async def test_cmdline_show_schema(self):
-        proc = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
-                "run_salkafka_producer.py",
-                "--show-schema",
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            ),
-            timeout=STD_TIMEOUT,
+        proc = await asyncio.create_subprocess_exec(
+            "run_salkafka_producer.py",
+            "--show-schema",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=STD_TIMEOUT
+            proc.communicate(), timeout=START_TIMEOUT
         )
         self.assertEqual(proc.returncode, 0, msg=stderr_bytes.decode())
         self.assertEqual(
@@ -186,28 +178,22 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             bad_kafka_arg_list += [key, str(value)]
 
         print("bad_kafka_arg_list =", bad_kafka_arg_list)
-        proc = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
-                "run_salkafka_producer.py",
-                "Test",
-                "Script",
-                *bad_kafka_arg_list,
-            ),
-            timeout=STD_TIMEOUT,
+        proc = await asyncio.create_subprocess_exec(
+            "run_salkafka_producer.py",
+            "Test",
+            "Script",
+            *bad_kafka_arg_list,
         )
-        await asyncio.wait_for(proc.wait(), timeout=STD_TIMEOUT)
+        await asyncio.wait_for(proc.wait(), timeout=START_TIMEOUT)
         self.assertNotEqual(proc.returncode, 0)
 
-        proc = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
-                "run_salkafka_producer.py",
-                "--file",
-                str(good_path),
-                *bad_kafka_arg_list,
-            ),
-            timeout=STD_TIMEOUT,
+        proc = await asyncio.create_subprocess_exec(
+            "run_salkafka_producer.py",
+            "--file",
+            str(good_path),
+            *bad_kafka_arg_list,
         )
-        await asyncio.wait_for(proc.wait(), timeout=STD_TIMEOUT)
+        await asyncio.wait_for(proc.wait(), timeout=START_TIMEOUT)
         self.assertNotEqual(proc.returncode, 0)
 
     async def test_run_producers_good(self):
@@ -218,7 +204,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
                 producer_set.run_producers(components=component_names)
             )
             t0 = salobj.current_tai()
-            await asyncio.wait_for(producer_set.start_task, timeout=STD_TIMEOUT)
+            await asyncio.wait_for(producer_set.start_task, timeout=START_TIMEOUT)
             dt = salobj.current_tai() - t0
             print(f"Duration={dt:0.1f} sec")
 
@@ -229,7 +215,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(topic_producer.start_task.done())
         finally:
             producer_set.signal_handler()
-            await asyncio.wait_for(producer_task, timeout=STD_TIMEOUT)
+            await asyncio.wait_for(producer_task, timeout=CLOSE_TIMEOUT)
 
     async def test_run_and_abort_producers(self):
         producer_set = salkafka.ComponentProducerSet(kafka_config=self.kafka_config)
@@ -242,7 +228,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.1)
         finally:
             producer_set.signal_handler()
-            await asyncio.wait_for(producer_task, timeout=STD_TIMEOUT)
+            await asyncio.wait_for(producer_task, timeout=CLOSE_TIMEOUT)
 
     async def test_run_producers_bad(self):
         producer_set = salkafka.ComponentProducerSet(kafka_config=self.kafka_config)
@@ -260,7 +246,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
                 producer_set.run_distributed_producer(topic_names_set=topic_names_set)
             )
             t0 = salobj.current_tai()
-            await asyncio.wait_for(producer_set.start_task, timeout=STD_TIMEOUT)
+            await asyncio.wait_for(producer_set.start_task, timeout=START_TIMEOUT)
             dt = salobj.current_tai() - t0
             print(f"Duration={dt:0.1f} sec")
             self.assertEqual(
@@ -268,7 +254,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             )
         finally:
             producer_set.signal_handler()
-            await asyncio.wait_for(producer_task, timeout=STD_TIMEOUT)
+            await asyncio.wait_for(producer_task, timeout=CLOSE_TIMEOUT)
 
     async def test_run_and_abort_distributed_producer(self):
         topic_names_set = salkafka.TopicNamesSet.from_file(
@@ -286,7 +272,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             print("Call signal handler from unit test")
             producer_set.signal_handler()
             with self.assertRaises(asyncio.CancelledError):
-                await asyncio.wait_for(producer_task, timeout=STD_TIMEOUT)
+                await asyncio.wait_for(producer_task, timeout=CLOSE_TIMEOUT)
 
 
 if __name__ == "__main__":

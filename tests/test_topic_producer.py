@@ -31,9 +31,6 @@ from lsst.ts import salkafka
 
 np.random.seed(47)
 
-# Generous timeout to prevent hanging if something goes wrong (seconds)
-STD_TIMEOUT = 60
-
 
 class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
     def run(self, result=None):
@@ -107,24 +104,21 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
             self.topic_producer = salkafka.TopicProducer(
                 kafka_factory=kafka_factory, topic=read_topic, log=log
             )
-            await asyncio.wait_for(
-                asyncio.gather(
-                    self.topic_producer.start_task,
-                    kafka_factory.start_task,
-                    read_salinfo.start(),
-                    self.csc.start_task,
-                ),
-                timeout=STD_TIMEOUT,
+            await asyncio.gather(
+                self.topic_producer.start_task,
+                kafka_factory.start_task,
+                read_salinfo.start(),
+                self.csc.start_task,
             )
 
             # Run the unit test
             yield
         finally:
             if self.topic_producer is not None:
-                await asyncio.wait_for(self.topic_producer.close(), timeout=STD_TIMEOUT)
-            await asyncio.wait_for(kafka_factory.close(), timeout=STD_TIMEOUT)
-            await asyncio.wait_for(read_salinfo.close(), timeout=STD_TIMEOUT)
-            await asyncio.wait_for(self.csc.close(), timeout=STD_TIMEOUT)
+                await self.topic_producer.close()
+            await kafka_factory.close()
+            await read_salinfo.close()
+            await self.csc.close()
 
     async def test_basics(self):
         async with self.make_producer(topic_name="arrays", sal_prefix="logevent_"):
