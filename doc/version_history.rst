@@ -10,6 +10,8 @@ v1.7.0
 ------
 
 * Add ``private_efdStamp`` field to Avro schema.
+  Set it to ``private_sndStamp`` converted to UTC unix seconds.
+* Added timeouts to unit tests to prevent infinite hangs.
 
 v1.6.0
 ------
