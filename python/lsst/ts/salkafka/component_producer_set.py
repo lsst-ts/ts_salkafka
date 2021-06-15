@@ -41,6 +41,9 @@ from .topic_names_set import TopicNamesSet
 from .component_producer import ComponentProducer
 from .kafka_producer_factory import KafkaConfiguration, KafkaProducerFactory
 
+# Time limit to wait for subprocesses to be terminated (seconds)
+SIGTERM_TIMEOUT = 5
+
 
 def asyncio_run_func(async_func, **kwargs):
     """Call asyncio.run on a specified async function with specified keyword
@@ -455,7 +458,10 @@ class ComponentProducerSet:
                 # Wait for processes to terminate, on a "best effort" basis,
                 # so ignore exceptions.
                 print("Waiting for partial producer processes to finish.")
-                await asyncio.gather(*self.producer_tasks, return_exceptions=True)
+                await asyncio.wait_for(
+                    asyncio.gather(*self.producer_tasks, return_exceptions=True),
+                    timeout=SIGTERM_TIMEOUT,
+                )
                 print("Done")
 
     async def run_producers(
@@ -614,7 +620,7 @@ class ComponentProducerSet:
         self.log.info(f"Partial producer {index} done")
 
     def signal_handler(self):
-        print("Signal handler")
+        print(f"ComponentProducerSet.signal_handler for pid={os.getpid()}")
         self._run_producer_subprocess_task.cancel()
         self._interruptable_start_task.cancel()
         self._wait_forever_task.cancel()
