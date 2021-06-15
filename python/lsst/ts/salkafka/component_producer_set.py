@@ -275,7 +275,6 @@ class ComponentProducerSet:
 
         producer_set._run_producer_subprocess_task = asyncio.create_task(
             producer_set.run_producer_subprocess(
-                producer_set=producer_set,
                 component=component,
                 index=index,
                 topic_names=topic_names,
@@ -535,7 +534,6 @@ class ComponentProducerSet:
 
     async def run_producer_subprocess(
         self,
-        producer_set,
         component,
         index,
         topic_names,
@@ -547,6 +545,22 @@ class ComponentProducerSet:
         This is a separate method so it can be interrupted with
         the signal handler (which otherwise could not easily interrupt
         the creation of salobj.Domain and KafkaProducerFactory).
+
+        Parameters
+        ----------
+        component : `str`
+            Name of a SAL component for which to handle a subset of topics.
+        index : `int`
+            Index of topic_names in TopicNamesSet;
+            identifies this sub-producers.
+        topic_names : `TopicNames`
+            Topic names.
+        started_queue : `multiprocessing.Queue`
+            A queue to which to publish the index
+            when this producer has started running.
+        queue_len : `int`, optional
+            Length of the DDS read queue. Must be greater than or equal to
+            `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
         """
         loop = asyncio.get_running_loop()
         for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
