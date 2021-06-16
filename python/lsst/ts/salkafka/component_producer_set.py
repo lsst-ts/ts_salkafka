@@ -41,6 +41,9 @@ from .topic_names_set import TopicNamesSet
 from .component_producer import ComponentProducer
 from .kafka_producer_factory import KafkaConfiguration, KafkaProducerFactory
 
+# Time limit to wait for subprocesses to be terminated (seconds)
+SIGTERM_TIMEOUT = 5
+
 
 def asyncio_run_func(async_func, **kwargs):
     """Call asyncio.run on a specified async function with specified keyword
@@ -275,7 +278,6 @@ class ComponentProducerSet:
 
         producer_set._run_producer_subprocess_task = asyncio.create_task(
             producer_set.run_producer_subprocess(
-                producer_set=producer_set,
                 component=component,
                 index=index,
                 topic_names=topic_names,
@@ -456,7 +458,10 @@ class ComponentProducerSet:
                 # Wait for processes to terminate, on a "best effort" basis,
                 # so ignore exceptions.
                 print("Waiting for partial producer processes to finish.")
-                await asyncio.gather(*self.producer_tasks, return_exceptions=True)
+                await asyncio.wait_for(
+                    asyncio.gather(*self.producer_tasks, return_exceptions=True),
+                    timeout=SIGTERM_TIMEOUT,
+                )
                 print("Done")
 
     async def run_producers(
@@ -535,7 +540,6 @@ class ComponentProducerSet:
 
     async def run_producer_subprocess(
         self,
-        producer_set,
         component,
         index,
         topic_names,
@@ -547,6 +551,22 @@ class ComponentProducerSet:
         This is a separate method so it can be interrupted with
         the signal handler (which otherwise could not easily interrupt
         the creation of salobj.Domain and KafkaProducerFactory).
+
+        Parameters
+        ----------
+        component : `str`
+            Name of a SAL component for which to handle a subset of topics.
+        index : `int`
+            Index of topic_names in TopicNamesSet;
+            identifies this sub-producers.
+        topic_names : `TopicNames`
+            Topic names.
+        started_queue : `multiprocessing.Queue`
+            A queue to which to publish the index
+            when this producer has started running.
+        queue_len : `int`, optional
+            Length of the DDS read queue. Must be greater than or equal to
+            `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
         """
         loop = asyncio.get_running_loop()
         for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
@@ -600,7 +620,7 @@ class ComponentProducerSet:
         self.log.info(f"Partial producer {index} done")
 
     def signal_handler(self):
-        print("Signal handler")
+        print(f"ComponentProducerSet.signal_handler for pid={os.getpid()}")
         self._run_producer_subprocess_task.cancel()
         self._interruptable_start_task.cancel()
         self._wait_forever_task.cancel()
