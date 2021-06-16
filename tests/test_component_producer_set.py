@@ -267,7 +267,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             )
             print("Created task that runs run_distributed_producer")
             # Give the sub-producers time to begin starting
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(1)
         finally:
             print("Call signal handler from unit test")
             producer_set.signal_handler()

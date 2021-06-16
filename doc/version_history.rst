@@ -6,6 +6,13 @@
 Version History
 ###############
 
+v1.7.0
+------
+
+* Add ``private_efdStamp`` field to Avro schema.
+  Set it to ``private_sndStamp`` converted to UTC unix seconds.
+* Added some timeouts to reduce the danger of infinite hangs.
+
 v1.6.0
 ------
 
