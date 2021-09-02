@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.7.1
+------
+
+* Fix semaphore file for partial producer mode.
+
 v1.7.0
 ------
 
