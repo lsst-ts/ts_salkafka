@@ -425,7 +425,7 @@ class ComponentProducerSet:
                 await self._interruptable_start_task
                 print("Partial producers are all running")
                 self.start_task.set_result(None)
-
+                self.semaphore_file.touch()
                 # In case one of the parallel producers fails, need to cancel
                 # all the others and exit. This will process any task that
                 # finished and then, proceed to cancel the remaining.
@@ -463,6 +463,9 @@ class ComponentProducerSet:
                     timeout=SIGTERM_TIMEOUT,
                 )
                 print("Done")
+
+        if self.semaphore_file.exists():
+            self.semaphore_file.unlink()
 
     async def run_producers(
         self,
@@ -607,15 +610,11 @@ class ComponentProducerSet:
                     self.start_task.set_result(None)
                     started_queue.put(index)
                     self.log.info(f"Partial producer {index} running")
-                    self.semaphore_file.touch()
                     await self._wait_forever_task
             except asyncio.CancelledError:
                 self.log.info(f"Partial producer {index} shutting down")
                 for producer in self.producers:
                     await producer.close()
-
-        if self.semaphore_file.exists():
-            self.semaphore_file.unlink()
 
         self.log.info(f"Partial producer {index} done")
 
