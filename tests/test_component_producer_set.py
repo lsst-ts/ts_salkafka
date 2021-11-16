@@ -27,6 +27,7 @@ import unittest
 import numpy as np
 
 from lsst.ts import salobj
+from lsst.ts import utils
 from lsst.ts import salkafka
 
 np.random.seed(47)
@@ -203,9 +204,9 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             producer_task = asyncio.create_task(
                 producer_set.run_producers(components=component_names)
             )
-            t0 = salobj.current_tai()
+            t0 = utils.current_tai()
             await asyncio.wait_for(producer_set.start_task, timeout=START_TIMEOUT)
-            dt = salobj.current_tai() - t0
+            dt = utils.current_tai() - t0
             print(f"Duration={dt:0.1f} sec")
 
             self.assertEqual(len(producer_set.producers), 2)
@@ -245,9 +246,9 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             producer_task = asyncio.create_task(
                 producer_set.run_distributed_producer(topic_names_set=topic_names_set)
             )
-            t0 = salobj.current_tai()
+            t0 = utils.current_tai()
             await asyncio.wait_for(producer_set.start_task, timeout=START_TIMEOUT)
-            dt = salobj.current_tai() - t0
+            dt = utils.current_tai() - t0
             print(f"Duration={dt:0.1f} sec")
             self.assertEqual(
                 len(producer_set.producer_tasks), len(topic_names_set.topic_names_list)

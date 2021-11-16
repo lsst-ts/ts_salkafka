@@ -37,6 +37,7 @@ import sys
 import traceback
 
 from lsst.ts import salobj
+from lsst.ts import utils
 from .topic_names_set import TopicNamesSet
 from .component_producer import ComponentProducer
 from .kafka_producer_factory import KafkaConfiguration, KafkaProducerFactory
@@ -162,9 +163,9 @@ class ComponentProducerSet:
         # This is different than start_task in order to avoid a race condition
         # when code (typically a unit test) creates a ComponentProducerSet
         # and immediately starts waiting for start_task to be done.
-        self._interruptable_start_task = salobj.make_done_future()
+        self._interruptable_start_task = utils.make_done_future()
 
-        self._run_producer_subprocess_task = salobj.make_done_future()
+        self._run_producer_subprocess_task = utils.make_done_future()
 
         # A task that ends when the service is interrupted.
         self._wait_forever_task = asyncio.Future()
