@@ -23,6 +23,7 @@ import pathlib
 import unittest
 
 import jsonschema
+import pytest
 
 from lsst.ts import idl
 from lsst.ts import salobj
@@ -64,14 +65,14 @@ class TopicNamesSetTestCase(unittest.TestCase):
         """Check a TopicNamesSet constructed with no TopicNames
         specified.
         """
-        self.assertEqual(topic_names_set.component, self.component)
-        self.assertEqual(topic_names_set.queue_len, salobj.topics.DEFAULT_QUEUE_LEN)
-        self.assertEqual(len(topic_names_set.topic_names_list), 1)
+        assert topic_names_set.component == self.component
+        assert topic_names_set.queue_len == salobj.topics.DEFAULT_QUEUE_LEN
+        assert len(topic_names_set.topic_names_list) == 1
         topic_names = topic_names_set.topic_names_list[0]
-        self.assertTrue(topic_names.add_ackcmd)
-        self.assertEqual(topic_names.commands, sorted(self.command_names))
-        self.assertEqual(topic_names.events, sorted(self.event_names))
-        self.assertEqual(topic_names.telemetry, sorted(self.telemetry_names))
+        assert topic_names.add_ackcmd
+        assert topic_names.commands == sorted(self.command_names)
+        assert topic_names.events == sorted(self.event_names)
+        assert topic_names.telemetry == sorted(self.telemetry_names)
 
     def test_no_partitions(self):
         """Test that specifying an empty list of topic_names_list
@@ -91,11 +92,11 @@ class TopicNamesSetTestCase(unittest.TestCase):
         partition1 = salkafka.TopicNames(**kwargs1)
 
         # Check the values in the topic names list
-        self.assertFalse(partition0.add_ackcmd)
-        self.assertTrue(partition1.add_ackcmd)
+        assert not partition0.add_ackcmd
+        assert partition1.add_ackcmd
         for category in self.categories:
-            self.assertEqual(getattr(partition0, category), sorted(kwargs0[category]))
-            self.assertEqual(getattr(partition1, category), sorted(kwargs1[category]))
+            assert getattr(partition0, category) == sorted(kwargs0[category])
+            assert getattr(partition1, category) == sorted(kwargs1[category])
 
         # Create and check the topic names
         queue_len = 2500
@@ -104,26 +105,24 @@ class TopicNamesSetTestCase(unittest.TestCase):
             queue_len=queue_len,
             topic_names_list=[partition0, partition1],
         )
-        self.assertEqual(topic_names_set.queue_len, queue_len)
-        self.assertEqual(len(topic_names_set.topic_names_list), 3)
+        assert topic_names_set.queue_len == queue_len
+        assert len(topic_names_set.topic_names_list) == 3
 
         # Check that the TopicNames item match the input
-        self.assertEqual(vars(partition0), vars(topic_names_set.topic_names_list[0]))
-        self.assertEqual(vars(partition1), vars(topic_names_set.topic_names_list[1]))
+        assert vars(partition0) == vars(topic_names_set.topic_names_list[0])
+        assert vars(partition1) == vars(topic_names_set.topic_names_list[1])
 
         # Check the values in the extra TopicNames entry
         extra_partition = topic_names_set.topic_names_list[2]
         for category in self.categories:
             remaining_names = self.all_names[category][4:]
-            self.assertEqual(
-                getattr(extra_partition, category), sorted(remaining_names)
-            )
+            assert getattr(extra_partition, category) == sorted(remaining_names)
 
     def test_bad_topic_names(self):
         for category in self.categories:
             bad_kwargs = {category: "no_such_topic"}
             bad_partition = salkafka.TopicNames(**bad_kwargs)
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 salkafka.TopicNamesSet(
                     component="Test", topic_names_list=[bad_partition]
                 )
@@ -135,12 +134,12 @@ class TopicNamesSetTestCase(unittest.TestCase):
             kwargs1 = {category: all_names[1:3]}
             partition0 = salkafka.TopicNames(**kwargs0)
             partition1 = salkafka.TopicNames(**kwargs1)
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 salkafka.TopicNamesSet(
                     component="Test", topic_names_list=[partition0, partition1]
                 )
         topic_names = salkafka.TopicNames(add_ackcmd=True)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             salkafka.TopicNamesSet(
                 component="Test", topic_names_list=[topic_names, topic_names]
             )
@@ -154,29 +153,25 @@ class TopicNamesSetTestCase(unittest.TestCase):
         topic_names_set = salkafka.TopicNamesSet.from_file(
             self.data_dir / "good_two_partitions.yaml"
         )
-        self.assertEqual(topic_names_set.component, "Test")
-        self.assertEqual(topic_names_set.queue_len, 2500)
-        self.assertEqual(len(topic_names_set.topic_names_list), 3)
+        assert topic_names_set.component == "Test"
+        assert topic_names_set.queue_len == 2500
+        assert len(topic_names_set.topic_names_list) == 3
         partition0 = topic_names_set.topic_names_list[0]
-        self.assertTrue(partition0.add_ackcmd)
-        self.assertEqual(partition0.commands, ["setArrays", "setScalars"])
-        self.assertEqual(partition0.events, [])
-        self.assertEqual(partition0.telemetry, [])
+        assert partition0.add_ackcmd
+        assert partition0.commands == ["setArrays", "setScalars"]
+        assert partition0.events == []
+        assert partition0.telemetry == []
         partition1 = topic_names_set.topic_names_list[1]
-        self.assertFalse(partition1.add_ackcmd)
-        self.assertEqual(partition1.commands, [])
-        self.assertEqual(partition1.events, ["arrays"])
-        self.assertEqual(partition1.telemetry, ["scalars"])
+        assert not partition1.add_ackcmd
+        assert partition1.commands == []
+        assert partition1.events == ["arrays"]
+        assert partition1.telemetry == ["scalars"]
 
     def test_from_file_bad(self):
         for filepath in self.data_dir.glob("bad_*.yaml"):
             if "duplicate" in filepath.name:
-                with self.assertRaises(ValueError):
+                with pytest.raises(ValueError):
                     salkafka.TopicNamesSet.from_file(filepath)
             else:
-                with self.assertRaises(jsonschema.ValidationError):
+                with pytest.raises(jsonschema.ValidationError):
                     salkafka.TopicNamesSet.from_file(filepath)
-
-
-if __name__ == "__main__":
-    unittest.main()
