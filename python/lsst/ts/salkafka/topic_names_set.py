@@ -251,5 +251,6 @@ class TopicNamesSet:
                     type: string
         required:
           - component
+          - topic_sets
         """
         )

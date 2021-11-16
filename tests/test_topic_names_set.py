@@ -61,26 +61,6 @@ class TopicNamesSetTestCase(unittest.TestCase):
         )
         cls.categories = ("commands", "events", "telemetry")
 
-    def check_no_partitions(self, topic_names_set):
-        """Check a TopicNamesSet constructed with no TopicNames
-        specified.
-        """
-        assert topic_names_set.component == self.component
-        assert topic_names_set.queue_len == salobj.topics.DEFAULT_QUEUE_LEN
-        assert len(topic_names_set.topic_names_list) == 1
-        topic_names = topic_names_set.topic_names_list[0]
-        assert topic_names.add_ackcmd
-        assert topic_names.commands == sorted(self.command_names)
-        assert topic_names.events == sorted(self.event_names)
-        assert topic_names.telemetry == sorted(self.telemetry_names)
-
-    def test_no_partitions(self):
-        """Test that specifying an empty list of topic_names_list
-        results in a single TopicNames instance with all topics.
-        """
-        topic_names_set = salkafka.TopicNamesSet(component="Test", topic_names_list=[])
-        self.check_no_partitions(topic_names_set)
-
     def test_two_partitions(self):
         kwargs0 = {}
         kwargs1 = {}
@@ -146,12 +126,7 @@ class TopicNamesSetTestCase(unittest.TestCase):
 
     def test_from_file_good(self):
         topic_names_set = salkafka.TopicNamesSet.from_file(
-            self.data_dir / "good_no_partitions.yaml"
-        )
-        self.check_no_partitions(topic_names_set)
-
-        topic_names_set = salkafka.TopicNamesSet.from_file(
-            self.data_dir / "good_two_partitions.yaml"
+            self.data_dir / "good_two_sets.yaml"
         )
         assert topic_names_set.component == "Test"
         assert topic_names_set.queue_len == 2500

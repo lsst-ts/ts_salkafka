@@ -81,7 +81,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
         }
 
     async def test_cmdline_validate_good(self):
-        good_path = self.data_dir / "good_two_partitions.yaml"
+        good_path = self.data_dir / "good_two_sets.yaml"
         proc = await asyncio.create_subprocess_exec(
             "run_salkafka_producer.py",
             "--file",
@@ -175,7 +175,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
             Dict of argument name: value.
             Values are cast to str if necessary.
         """
-        good_path = self.data_dir / "good_two_partitions.yaml"
+        good_path = self.data_dir / "good_two_sets.yaml"
         bad_kafka_arg_list = []
         for key, value in bad_kafka_args.items():
             bad_kafka_arg_list += [key, str(value)]
@@ -241,7 +241,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_distributed_producer(self):
         topic_names_set = salkafka.TopicNamesSet.from_file(
-            self.data_dir / "good_two_partitions.yaml"
+            self.data_dir / "good_two_sets.yaml"
         )
         producer_set = salkafka.ComponentProducerSet(kafka_config=self.kafka_config)
         try:
@@ -261,7 +261,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_and_abort_distributed_producer(self):
         topic_names_set = salkafka.TopicNamesSet.from_file(
-            self.data_dir / "good_two_partitions.yaml"
+            self.data_dir / "good_two_sets.yaml"
         )
         producer_set = salkafka.ComponentProducerSet(kafka_config=self.kafka_config)
         try:
