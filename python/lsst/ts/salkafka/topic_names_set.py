@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # This file is part of ts_salkafka.
 #
 # Developed for the LSST Telescope and Site Systems.
@@ -21,6 +23,8 @@
 
 __all__ = ["TopicNames", "TopicNamesSet"]
 
+import dataclasses
+import collections.abc
 import yaml
 
 import jsonschema
@@ -28,7 +32,10 @@ import jsonschema
 from lsst.ts import idl
 from lsst.ts import salobj
 
+TOPIC_CATEGORIES = ("commands", "events", "telemetry")
 
+
+@dataclasses.dataclass
 class TopicNames:
     """A collection of topic names.
 
@@ -42,23 +49,24 @@ class TopicNames:
         Add ``ackcmd`` topic to the producer?
     commands : `list` of `str`, optional
         Commands to add to the producer, with no prefix, e.g. "enable".
+        Converted to a sorted list.
     events : `list` of `str`, optional
         Events to add to the producer, with no prefix, e.g. "summaryState".
+        Converted to a sorted list.
     telemetry : `list` of `str`, optional
         Telemtry topics to add to the producer.
+        Converted to a sorted list.
     """
 
-    def __init__(
-        self,
-        add_ackcmd=False,
-        commands=(),
-        events=(),
-        telemetry=(),
-    ):
-        self.add_ackcmd = bool(add_ackcmd)
-        self.commands = sorted(commands)
-        self.events = sorted(events)
-        self.telemetry = sorted(telemetry)
+    add_ackcmd: bool = False
+    commands: collections.abc.Sequence[str] = ()
+    events: collections.abc.Sequence[str] = ()
+    telemetry: collections.abc.Sequence[str] = ()
+
+    def __post_init__(self):
+        for category in TOPIC_CATEGORIES:
+            sorted_list = sorted(getattr(self, category))
+            setattr(self, category, sorted_list)
 
 
 class TopicNamesSet:
@@ -98,11 +106,10 @@ class TopicNamesSet:
         self.component = component
         self.topic_names_list = list(topic_names_list)
         self.queue_len = int(queue_len)
-        topic_categories = ("commands", "events", "telemetry")
 
         # Construct a dict of topic category: all topic names, by reading the
         # IDL file. Topic names *omit* the command_ and logevent_ prefix.
-        all_names_dict = {category: set() for category in topic_categories}
+        all_names_dict = {category: set() for category in TOPIC_CATEGORIES}
         idl_metadata = salobj.parse_idl(
             component, idl.get_idl_dir() / f"sal_revCoded_{component}.idl"
         )
@@ -119,7 +126,7 @@ class TopicNamesSet:
         # Examine the topic_names_list, recording which topics have been seen
         # and looking for invalid and duplicate names.
         ackcmd_added = False
-        seen_names_dict = {category: set() for category in topic_categories}
+        seen_names_dict = {category: set() for category in TOPIC_CATEGORIES}
         for i, topic_names in enumerate(self.topic_names_list):
             if topic_names.add_ackcmd:
                 if ackcmd_added:
@@ -128,7 +135,7 @@ class TopicNamesSet:
                     )
                 ackcmd_added = True
 
-            for category in topic_categories:
+            for category in TOPIC_CATEGORIES:
                 all_names = all_names_dict[category]
                 seen_names = seen_names_dict[category]
                 specified_names = set(getattr(topic_names, category, []))
@@ -154,10 +161,10 @@ class TopicNamesSet:
         # Append a TopicNames to handle remaining topics, if needed.
         remaining_names = {
             category: all_names_dict[category] - seen_names_dict[category]
-            for category in topic_categories
+            for category in TOPIC_CATEGORIES
         }
         if not ackcmd_added or any(
-            len(remaining_names[category]) > 0 for category in topic_categories
+            len(remaining_names[category]) > 0 for category in TOPIC_CATEGORIES
         ):
             self.topic_names_list.append(
                 TopicNames(add_ackcmd=not ackcmd_added, **remaining_names)
