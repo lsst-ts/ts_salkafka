@@ -25,6 +25,7 @@ __all__ = ["ComponentProducerSet"]
 import argparse
 import asyncio
 import concurrent.futures
+import copy
 import functools
 import logging
 import multiprocessing
@@ -258,7 +259,8 @@ class ComponentProducerSet:
         Parameters
         ----------
         kafka_config : `KafkaConfig`
-            Kafka configuration.
+            Kafka configuration. The ``partitions`` field is ignored,
+            in favor of the value in ``topic_names``.
         component : `str`
             Name of a SAL component for which to handle a subset of topics.
         index : `int`
@@ -275,6 +277,8 @@ class ComponentProducerSet:
             Length of the DDS read queue. Must be greater than or equal to
             `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
         """
+        kafka_config = copy.copy(kafka_config)
+        kafka_config.partitions = topic_names.partitions
         producer_set = cls(kafka_config=kafka_config, log_level=log_level)
 
         producer_set._run_producer_subprocess_task = asyncio.create_task(
@@ -322,7 +326,9 @@ class ComponentProducerSet:
             "--partitions",
             type=int,
             default=1,
-            help="Number of partitions for each Kafka topic.",
+            help="Number of partitions for each Kafka topic. "
+            "A file specified as the --file argument may override this value "
+            "for each set of topics.",
         )
         parser.add_argument(
             "--replication-factor",
@@ -571,7 +577,18 @@ class ComponentProducerSet:
         queue_len : `int`, optional
             Length of the DDS read queue. Must be greater than or equal to
             `salobj.domain.DDS_READ_QUEUE_LEN`, which is the default.
+
+        Raises
+        ------
+        ValueError
+            If topic_names.partitions != self.kafka_config.partitions.
         """
+        if topic_names.partitions != self.kafka_config.partitions:
+            raise ValueError(
+                f"topic_names.partitions={topic_names.partitions} != "
+                f"kafka_config.partitions={self.kafka_config.partitions}"
+            )
+
         loop = asyncio.get_running_loop()
         for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
             loop.add_signal_handler(s, self.signal_handler)
