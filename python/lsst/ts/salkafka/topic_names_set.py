@@ -45,6 +45,8 @@ class TopicNames:
 
     Parameters
     ----------
+    partitions : `int`
+        The desired number of Kafka partitions for these topics.
     add_ackcmd : `bool`, optional
         Add ``ackcmd`` topic to the producer?
     commands : `list` of `str`, optional
@@ -58,6 +60,7 @@ class TopicNames:
         Converted to a sorted list.
     """
 
+    partitions: int
     add_ackcmd: bool = False
     commands: collections.abc.Sequence[str] = ()
     events: collections.abc.Sequence[str] = ()
@@ -90,6 +93,8 @@ class TopicNamesSet:
         List of `TopicNames` entries. Need not be complete, but if any topics
         are missing, the ``topic_names_list`` attribute has one additional item
         that specifies all remaining topics.
+    default_partitions : `int`, optional
+        The default number of Kafka partitions for each topic.
     queue_len : `int`, optional
         Length of the read queue.
 
@@ -101,9 +106,15 @@ class TopicNamesSet:
     """
 
     def __init__(
-        self, *, component, topic_names_list, queue_len=salobj.topics.DEFAULT_QUEUE_LEN
+        self,
+        *,
+        component,
+        topic_names_list,
+        default_partitions=1,
+        queue_len=salobj.topics.DEFAULT_QUEUE_LEN,
     ):
         self.component = component
+        self.default_partitions = default_partitions
         self.topic_names_list = list(topic_names_list)
         self.queue_len = int(queue_len)
 
@@ -167,11 +178,15 @@ class TopicNamesSet:
             len(remaining_names[category]) > 0 for category in TOPIC_CATEGORIES
         ):
             self.topic_names_list.append(
-                TopicNames(add_ackcmd=not ackcmd_added, **remaining_names)
+                TopicNames(
+                    partitions=self.default_partitions,
+                    add_ackcmd=not ackcmd_added,
+                    **remaining_names,
+                )
             )
 
     @classmethod
-    def from_file(cls, filename):
+    def from_file(cls, filename, default_partitions=1):
         """Create from a file path.
 
         Parameters
@@ -179,6 +194,8 @@ class TopicNamesSet:
         filename : `str`
             Path of yaml file to load.
             The schema must match that from `schema`
+        default_partitions : `int`, optional
+            The default number of Kafka partitions for each topic.
 
         Returns
         -------
@@ -196,10 +213,14 @@ class TopicNamesSet:
         topic_names_list = []
         component = components_info["component"]
         for topic_set in components_info.get("topic_sets", []):
+            topic_set.setdefault("partitions", default_partitions)
             topic_names_list.append(TopicNames(**topic_set))
         queue_len = components_info.get("queue_len", salobj.topics.DEFAULT_QUEUE_LEN)
         return cls(
-            component=component, topic_names_list=topic_names_list, queue_len=queue_len
+            component=component,
+            topic_names_list=topic_names_list,
+            default_partitions=default_partitions,
+            queue_len=queue_len,
         )
 
     @staticmethod
@@ -256,6 +277,13 @@ class TopicNamesSet:
                   type: array
                   items:
                     type: string
+                partitions:
+                    description: >-
+                        The number of Kafka partitions.
+                        If omitted, use the value specified by the
+                        --partitions command-line argument.
+                    type: integer
+                    minimum: 1
         required:
           - component
           - topic_sets
