@@ -22,6 +22,8 @@
 __all__ = ["KafkaConfiguration", "KafkaProducerFactory"]
 
 import asyncio
+import dataclasses
+import typing
 
 import aiohttp
 
@@ -32,6 +34,7 @@ from kafkit.registry.aiohttp import RegistryApi
 from kafkit.registry import Serializer
 
 
+@dataclasses.dataclass
 class KafkaConfiguration:
     """Kakfa producer configuration.
 
@@ -55,32 +58,17 @@ class KafkaConfiguration:
         * "all": wait for all kafka brokers to respond
     """
 
-    def __init__(
-        self,
-        broker_url,
-        registry_url,
-        partitions,
-        replication_factor,
-        wait_for_ack,
-    ):
-        self.broker_url = broker_url
-        self.registry_url = registry_url
-        self.partitions = partitions
-        self.replication_factor = replication_factor
-        if wait_for_ack not in (0, 1, "all"):
-            raise ValueError(
-                f"wait_for_ack={wait_for_ack!r} must be one of 0, 1, 'all'"
-            )
-        self.wait_for_ack = wait_for_ack
+    broker_url: str
+    registry_url: str
+    partitions: int
+    replication_factor: int
+    wait_for_ack: typing.Union[int, str]
 
-    def __repr__(self):
-        return (
-            f"KafkaConfiguration(broker_url={self.broker_url}, "
-            f"registry_url={self.registry_url}, "
-            f"partitions={self.partitions}, "
-            f"replication_factor={self.replication_factor}, "
-            f"wait_for_ack={self.wait_for_ack})"
-        )
+    def __post_init__(self):
+        if self.wait_for_ack not in (0, 1, "all"):
+            raise ValueError(
+                f"wait_for_ack={self.wait_for_ack!r} must be one of 0, 1, 'all'"
+            )
 
 
 class KafkaProducerFactory:

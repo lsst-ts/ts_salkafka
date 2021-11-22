@@ -100,8 +100,8 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
             attr_names += ["cmd_" + name for name in self.csc.salinfo.command_names]
             attr_names += ["evt_" + name for name in self.csc.salinfo.event_names]
             attr_names += ["tel_" + name for name in self.csc.salinfo.telemetry_names]
-            self.assertEqual(
-                set(attr_names), set(self.component_producer.topic_producers.keys())
+            assert set(attr_names) == set(
+                self.component_producer.topic_producers.keys()
             )
 
             producer = self.component_producer.topic_producers["evt_arrays"]
@@ -114,14 +114,14 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0.01)
                 else:
                     self.fail("Data not seen in time")
-                self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
+                assert len(producer.kafka_producer.sent_data) == isample + 1
                 (
                     kafka_topic_name,
                     sent_value,
                     serialized_value,
                 ) = producer.kafka_producer.sent_data[-1]
-                self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
-                self.assertIsInstance(serialized_value, bytes)
+                assert kafka_topic_name == "lsst.sal.Test.logevent_arrays"
+                assert isinstance(serialized_value, bytes)
                 for key, value in evt_array_data.get_vars().items():
                     if key == "private_rcvStamp":
                         # not set in evt_array_data but set in received
@@ -130,7 +130,7 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
                     if isinstance(value, np.ndarray):
                         np.testing.assert_array_equal(sent_value[key], value)
                     else:
-                        self.assertEqual(sent_value[key], value)
+                        assert sent_value[key] == value
 
             producer = self.component_producer.topic_producers["evt_scalars"]
             for isample in range(3):
@@ -142,21 +142,17 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0.01)
                 else:
                     self.fail("Data not seen in time")
-                self.assertEqual(len(producer.kafka_producer.sent_data), isample + 1)
+                assert len(producer.kafka_producer.sent_data) == isample + 1
                 (
                     kafka_topic_name,
                     sent_value,
                     serialized_value,
                 ) = producer.kafka_producer.sent_data[-1]
-                self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_scalars")
-                self.assertIsInstance(serialized_value, bytes)
+                assert kafka_topic_name == "lsst.sal.Test.logevent_scalars"
+                assert isinstance(serialized_value, bytes)
                 for key, value in evt_scalar_data.get_vars().items():
                     if key == "private_rcvStamp":
                         # not set in evt_scalar_data but set in received
                         # sample and thus in ``sent_value``
                         continue
-                    self.assertEqual(sent_value[key], value)
-
-
-if __name__ == "__main__":
-    unittest.main()
+                    assert sent_value[key] == value

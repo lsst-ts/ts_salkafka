@@ -1,5 +1,6 @@
 setupRequired(sconsUtils)
-setupRequired(ts_idl)  # IDL files and the quality of service file
+setupRequired(ts_idl)
+setupRequired(ts_utils)
 setupRequired(ts_salobj)
 
 envPrepend(PATH, ${PRODUCT_DIR}/bin)

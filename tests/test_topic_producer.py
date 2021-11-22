@@ -131,16 +131,14 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0.01)
                 else:
                     self.fail("Data not seen in time")
-                self.assertEqual(
-                    len(self.topic_producer.kafka_producer.sent_data), isample + 1
-                )
+                assert len(self.topic_producer.kafka_producer.sent_data) == isample + 1
                 (
                     kafka_topic_name,
                     sent_value,
                     serialized_value,
                 ) = self.topic_producer.kafka_producer.sent_data[-1]
-                self.assertEqual(kafka_topic_name, "lsst.sal.Test.logevent_arrays")
-                self.assertIsInstance(serialized_value, bytes)
+                assert kafka_topic_name == "lsst.sal.Test.logevent_arrays"
+                assert isinstance(serialized_value, bytes)
                 for key, value in evt_array_data.get_vars().items():
                     if key == "private_rcvStamp":
                         # not set in evt_array_data but set in received
@@ -149,7 +147,7 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
                     if isinstance(value, np.ndarray):
                         np.testing.assert_array_equal(sent_value[key], value)
                     else:
-                        self.assertEqual(sent_value[key], value)
+                        assert sent_value[key] == value
 
     async def test_ackcmd(self):
         """ackcmd topics are special, so make sure they work.
@@ -166,18 +164,12 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0.01)
                 else:
                     self.fail("Data not seen in time")
-                self.assertEqual(
-                    len(self.topic_producer.kafka_producer.sent_data), isample + 1
-                )
+                assert len(self.topic_producer.kafka_producer.sent_data) == isample + 1
                 (
                     kafka_topic_name,
                     sent_value,
                     serialized_value,
                 ) = self.topic_producer.kafka_producer.sent_data[-1]
-                self.assertEqual(kafka_topic_name, "lsst.sal.Test.ackcmd")
-                self.assertIsInstance(serialized_value, bytes)
-                self.assertEqual(sent_value["private_seqNum"], isample)
-
-
-if __name__ == "__main__":
-    unittest.main()
+                assert kafka_topic_name == "lsst.sal.Test.ackcmd"
+                assert isinstance(serialized_value, bytes)
+                assert sent_value["private_seqNum"] == isample

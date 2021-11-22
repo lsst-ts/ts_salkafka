@@ -9,3 +9,4 @@ topic_sets:
       - arrays
     telemetry:
       - scalars
+    partitions: 5

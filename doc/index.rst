@@ -43,7 +43,7 @@ Here is an example (with nonsense kafka arguments)::
 For a few chatty components, such as MTM1M3, you must dedicate one producer to that component,
 splitting its topics among subprocesses by using the ``--file`` argument
 with a configuration file that specifies how to divide the topics.
-Here is an example (with nonsense kafka arguments)::
+Here is an example (with nonsense kafka arguments and arbitary numbers of partitions in the yaml file)::
 
     run_salkafka_producer.py --file MTM1M3.yaml --broker test.kafka:9000 --registry https://registry.test.kafka/
 
@@ -54,8 +54,10 @@ where MTM1M3.yaml contains::
     topic_sets:
       - events:
           - appliedCylinderForces
+        partitions: 5
       - events:
           - hardpointActuatorWarning
+        partitions: 2
       - events:
           - hardpointMonitorWarning
       - telemetry:
@@ -78,6 +80,7 @@ where MTM1M3.yaml contains::
           - pidData
       - telemetry:
           - hardpointMonitorData
+        partitions: 10
 
 You will be able to tell if you ask a producer to do too much,
 because you will see log messages about falling behind,

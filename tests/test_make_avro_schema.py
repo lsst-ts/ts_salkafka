@@ -55,11 +55,9 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
             topic = salobj.topics.ControllerEvent(salinfo=salinfo, name=topic_name)
             topic_sample = topic.DataType()
             schema = salkafka.make_avro_schema(topic=topic)
-            self.assertGreaterEqual(len(schema), 3)
-            self.assertEqual(
-                schema["name"], f"lsst.sal.{salinfo.name}.{topic.sal_name}"
-            )
-            self.assertEqual(schema["type"], "record")
+            assert len(schema) >= 3
+            assert schema["name"] == f"lsst.sal.{salinfo.name}.{topic.sal_name}"
+            assert schema["type"] == "record"
             desired_field_name_type = {
                 # added by make_avro_schema
                 "private_efdStamp": "double",
@@ -108,26 +106,20 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                         desired_type = dict(type="array", items=desired_item_type)
                     else:
                         desired_type = desired_field_name_type[field_name]
-                    self.assertEqual(schema_item["type"], desired_type)
+                    assert schema_item["type"] == desired_type
                     if field_name == "private_efdStamp":
-                        self.assertEqual(schema_item["units"], "second")
-                        self.assertTrue(
-                            schema_item["description"].startswith("UTC time for EFD")
-                        )
+                        assert schema_item["units"] == "second"
+                        assert schema_item["description"].startswith("UTC time for EFD")
                     if field_name == "private_kafkaStamp":
-                        self.assertEqual(schema_item["units"], "second")
-                        self.assertEqual(
-                            schema_item["description"],
-                            "TAI time at which the Kafka message was created.",
+                        assert schema_item["units"] == "second"
+                        assert (
+                            schema_item["description"]
+                            == "TAI time at which the Kafka message was created."
                         )
                     elif field_name == "TestID":
                         # SAL 4.0 provides no metadata for this topic
                         # but SAL 4.1 may.
                         pass
                     else:
-                        self.assertIsInstance(schema_item["units"], str)
-                        self.assertIsInstance(schema_item["description"], str)
-
-
-if __name__ == "__main__":
-    unittest.main()
+                        assert isinstance(schema_item["units"], str)
+                        assert isinstance(schema_item["description"], str)

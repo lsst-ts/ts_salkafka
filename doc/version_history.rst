@@ -6,6 +6,19 @@
 Version History
 ###############
 
+v1.8.0
+------
+
+* Allow specifying the number of Kafka partitions per topic set (e.g. when running a producer with the ``--file`` argument).
+* `TopicNames`: make it a `dataclasses.dataclass` and add a ``partition`` field.
+* `TopicNamesSet`: add ``default_partition`` constructor argument.
+  Update the schema to require at least one topic set.
+* `KafkaConfiguration`: make it a `dataclasses.dataclass`.
+* `ComponentProducerSet.create_producer_subprocess`: set Kafka partitions from `TopicNames`.
+* Update to use ts_utils.
+* Update to use pytest-black.
+* Modernize unit tests to use bare assert.
+
 v1.7.1
 ------
 
