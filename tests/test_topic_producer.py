@@ -28,6 +28,7 @@ import numpy as np
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
+from lsst.ts import utils
 
 np.random.seed(47)
 
@@ -39,7 +40,7 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
         https://stackoverflow.com/a/11180583
         """
         salobj.set_random_lsst_dds_partition_prefix()
-        with salkafka.mocks.insert_all_mocks():
+        with salkafka.mocks.insert_all_mocks(), utils.modify_environ(LSST_SITE="test"):
             super().run(result)
 
     @contextlib.asynccontextmanager
@@ -123,8 +124,8 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_basics(self):
         async with self.make_producer(topic_name="arrays", sal_prefix="logevent_"):
             for isample in range(3):
-                evt_array_data = self.csc.make_random_evt_arrays()
-                self.csc.evt_arrays.put(evt_array_data)
+                arrays_dict = self.csc.make_random_arrays_dict()
+                await self.csc.evt_arrays.set_write(**arrays_dict)
                 for iread in range(10):
                     if len(self.topic_producer.kafka_producer.sent_data) > isample:
                         break
@@ -139,9 +140,9 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
                 ) = self.topic_producer.kafka_producer.sent_data[-1]
                 assert kafka_topic_name == "lsst.sal.Test.logevent_arrays"
                 assert isinstance(serialized_value, bytes)
-                for key, value in evt_array_data.get_vars().items():
+                for key, value in arrays_dict.items():
                     if key == "private_rcvStamp":
-                        # not set in evt_array_data but set in received
+                        # not set in arrays_dict but set in received
                         # sample and thus in ``sent_value``
                         continue
                     if isinstance(value, np.ndarray):
@@ -156,8 +157,7 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
         """
         async with self.make_producer(topic_name="ackcmd", sal_prefix=""):
             for isample in range(3):
-                self.csc.salinfo._ackcmd_writer.set(private_seqNum=isample)
-                self.csc.salinfo._ackcmd_writer.put()
+                await self.csc.salinfo._ackcmd_writer.set_write(private_seqNum=isample)
                 for iread in range(10):
                     if len(self.topic_producer.kafka_producer.sent_data) > isample:
                         break
