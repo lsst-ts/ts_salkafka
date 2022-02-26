@@ -44,18 +44,15 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
             super().run(result)
 
     @contextlib.asynccontextmanager
-    async def make_producer(self, topic_name, sal_prefix):
+    async def make_producer(self, attr_name):
         """Make a CSC and topic producer for a specified topic of the
         Test SAL component.
 
         Parameters
         ----------
-        topic_name : `str`
-            Topic name, without any prefix.
-            For example specify summaryState for logevent_summaryState.
-        sal_prefix : `str`
-            SAL prefix for the topic.
-            For example specify logevent_ for logevent_summaryState.
+        attr_name : `str`
+            Topic name with attribute prefix. The prefix must be one of:
+            ``cmd_``, ``evt_``, ``tel_``, or (for the ackcmd topic) ``ack_``.
 
         Attributes
         ----------
@@ -96,8 +93,7 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
         try:
             read_topic = salobj.topics.ReadTopic(
                 salinfo=read_salinfo,
-                name=topic_name,
-                sal_prefix=sal_prefix,
+                attr_name=attr_name,
                 max_history=0,
                 filter_ackcmd=False,
             )
@@ -122,7 +118,7 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
             await self.csc.close()
 
     async def test_basics(self):
-        async with self.make_producer(topic_name="arrays", sal_prefix="logevent_"):
+        async with self.make_producer(attr_name="evt_arrays"):
             for isample in range(3):
                 arrays_dict = self.csc.make_random_arrays_dict()
                 await self.csc.evt_arrays.set_write(**arrays_dict)
@@ -155,7 +151,7 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
 
         This exercises DM-25707
         """
-        async with self.make_producer(topic_name="ackcmd", sal_prefix=""):
+        async with self.make_producer(attr_name="ack_ackcmd"):
             for isample in range(3):
                 await self.csc.salinfo._ackcmd_writer.set_write(private_seqNum=isample)
                 for iread in range(10):

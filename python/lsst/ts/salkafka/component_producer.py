@@ -26,6 +26,9 @@ import asyncio
 from lsst.ts import salobj
 from .topic_producer import TopicProducer
 
+# dict of attr prefix: SAL prefix
+_SAL_PREFIXES = {"ack_": "", "cmd_": "command_", "evt_": "logevent_", "tel_": ""}
+
 
 def check_names(description, names, valid_names):
     """Raise ValueError if any names are invalid.
@@ -91,22 +94,22 @@ class ComponentProducer:
         """Dict of topic attr_name: TopicProducer.
         """
 
-        # Create a list of (basic topic name, SAL topic name prefix).
+        # Create a list of (basic topic name, attr prefix).
         topic_name_prefixes = []
         if topic_names is None:
-            topic_name_prefixes += [("ackcmd", "")]
+            topic_name_prefixes += [("ackcmd", "ack_")]
             topic_name_prefixes += [
-                (cmd_name, "command_") for cmd_name in self.salinfo.command_names
+                (cmd_name, "cmd_") for cmd_name in self.salinfo.command_names
             ]
             topic_name_prefixes += [
-                (evt_name, "logevent_") for evt_name in self.salinfo.event_names
+                (evt_name, "evt_") for evt_name in self.salinfo.event_names
             ]
             topic_name_prefixes += [
-                (tel_name, "") for tel_name in self.salinfo.telemetry_names
+                (tel_name, "tel_") for tel_name in self.salinfo.telemetry_names
             ]
         else:
             if topic_names.add_ackcmd:
-                topic_name_prefixes += [("ackcmd", "")]
+                topic_name_prefixes += [("ackcmd", "ack_")]
 
             check_names(
                 description="commands",
@@ -114,7 +117,7 @@ class ComponentProducer:
                 valid_names=self.salinfo.command_names,
             )
             topic_name_prefixes += [
-                (cmd_name, "command_") for cmd_name in topic_names.commands
+                (cmd_name, "cmd_") for cmd_name in topic_names.commands
             ]
 
             check_names(
@@ -123,7 +126,7 @@ class ComponentProducer:
                 valid_names=self.salinfo.event_names,
             )
             topic_name_prefixes += [
-                (evt_name, "logevent_") for evt_name in topic_names.events
+                (evt_name, "evt_") for evt_name in topic_names.events
             ]
 
             check_names(
@@ -132,12 +135,12 @@ class ComponentProducer:
                 valid_names=self.salinfo.telemetry_names,
             )
             topic_name_prefixes += [
-                (tel_name, "") for tel_name in topic_names.telemetry
+                (tel_name, "tel_") for tel_name in topic_names.telemetry
             ]
 
         kafka_topic_names = [
-            f"lsst.sal.{self.salinfo.name}.{prefix}{name}"
-            for name, prefix in topic_name_prefixes
+            f"lsst.sal.{self.salinfo.name}.{_SAL_PREFIXES[attr_prefix]}{name}"
+            for name, attr_prefix in topic_name_prefixes
         ]
 
         self.log.info(
@@ -148,26 +151,23 @@ class ComponentProducer:
         self.log.info(f"Creating SAL/Kafka topic producers for {self.salinfo.name}.")
         try:
 
-            for topic_name, sal_prefix in topic_name_prefixes:
+            for topic_name, attr_prefix in topic_name_prefixes:
                 self._make_topic(
-                    name=topic_name,
-                    sal_prefix=sal_prefix,
-                    queue_len=queue_len,
+                    attr_name=attr_prefix + topic_name, queue_len=queue_len
                 )
             self.start_task = asyncio.ensure_future(self.start())
         except Exception:
             asyncio.ensure_future(self.salinfo.close())
             raise
 
-    def _make_topic(self, name, sal_prefix, queue_len=salobj.topics.DEFAULT_QUEUE_LEN):
+    def _make_topic(self, attr_name, queue_len=salobj.topics.DEFAULT_QUEUE_LEN):
         r"""Make a salobj read topic and associated topic producer.
 
         Parameters
         ----------
-        name : `str`
-            Topic name, without a "command\_" or "logevent\_" prefix.
-        sal_prefix : `str`
-            SAL topic prefix: one of "command\_", "logevent\_" or ""
+        attr_name : `str`
+            Topic name with attribute prefix. The prefix must be one of:
+            ``cmd_``, ``evt_``, ``tel_``, or (for the ackcmd topic) ``ack_``.
         queue_len : `int`, optional
             Length of the read queue (default to
             `salobj.topics.DEFAULT_QUEUE_LEN`).
@@ -175,8 +175,7 @@ class ComponentProducer:
         """
         topic = salobj.topics.ReadTopic(
             salinfo=self.salinfo,
-            name=name,
-            sal_prefix=sal_prefix,
+            attr_name=attr_name,
             max_history=0,
             queue_len=queue_len,
             filter_ackcmd=False,
@@ -184,7 +183,7 @@ class ComponentProducer:
         producer = TopicProducer(
             topic=topic, kafka_factory=self.kafka_factory, log=self.log
         )
-        self.topic_producers[topic.attr_name] = producer
+        self.topic_producers[attr_name] = producer
 
     async def start(self):
         """Start the contained `lsst.ts.salobj.SalInfo` and Kafka producers."""
