@@ -6,6 +6,12 @@
 Version History
 ###############
 
+v1.9.0
+------
+
+* Update for ts_salobj 7, which is required.
+* Modernize the ``Jenkinsfile``.
+
 v1.8.0
 ------
 

@@ -23,10 +23,11 @@ import unittest
 
 import numpy as np
 
-from lsst.ts import salobj
 from lsst.ts import salkafka
+from lsst.ts import salobj
+from lsst.ts import utils
 
-index_gen = salobj.index_generator()
+index_gen = utils.index_generator()
 
 
 class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):

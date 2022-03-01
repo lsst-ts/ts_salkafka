@@ -28,6 +28,7 @@ import numpy as np
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
+from lsst.ts import utils
 
 np.random.seed(47)
 
@@ -39,7 +40,7 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
         https://stackoverflow.com/a/11180583
         """
         salobj.set_random_lsst_dds_partition_prefix()
-        with salkafka.mocks.insert_all_mocks():
+        with salkafka.mocks.insert_all_mocks(), utils.modify_environ(LSST_SITE="test"):
             super().run(result)
 
     @contextlib.asynccontextmanager
@@ -106,8 +107,8 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
 
             producer = self.component_producer.topic_producers["evt_arrays"]
             for isample in range(3):
-                evt_array_data = self.csc.make_random_evt_arrays()
-                self.csc.evt_arrays.put(evt_array_data)
+                arrays_dict = self.csc.make_random_arrays_dict()
+                await self.csc.evt_arrays.set_write(**arrays_dict)
                 for iread in range(10):
                     if len(producer.kafka_producer.sent_data) > isample:
                         break
@@ -122,9 +123,9 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
                 ) = producer.kafka_producer.sent_data[-1]
                 assert kafka_topic_name == "lsst.sal.Test.logevent_arrays"
                 assert isinstance(serialized_value, bytes)
-                for key, value in evt_array_data.get_vars().items():
+                for key, value in arrays_dict.items():
                     if key == "private_rcvStamp":
-                        # not set in evt_array_data but set in received
+                        # not set in arrays_dict but set in received
                         # sample and thus in ``sent_value``
                         continue
                     if isinstance(value, np.ndarray):
@@ -134,8 +135,8 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
 
             producer = self.component_producer.topic_producers["evt_scalars"]
             for isample in range(3):
-                evt_scalar_data = self.csc.make_random_evt_scalars()
-                self.csc.evt_scalars.put(evt_scalar_data)
+                scalars_dict = self.csc.make_random_scalars_dict()
+                await self.csc.evt_scalars.set_write(**scalars_dict)
                 for iread in range(10):
                     if len(producer.kafka_producer.sent_data) > isample:
                         break
@@ -150,9 +151,9 @@ class ComponentProducerTestCase(unittest.IsolatedAsyncioTestCase):
                 ) = producer.kafka_producer.sent_data[-1]
                 assert kafka_topic_name == "lsst.sal.Test.logevent_scalars"
                 assert isinstance(serialized_value, bytes)
-                for key, value in evt_scalar_data.get_vars().items():
+                for key, value in scalars_dict.items():
                     if key == "private_rcvStamp":
-                        # not set in evt_scalar_data but set in received
+                        # not set in scalars_dict but set in received
                         # sample and thus in ``sent_value``
                         continue
                     assert sent_value[key] == value

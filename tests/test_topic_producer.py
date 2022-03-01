@@ -28,6 +28,7 @@ import numpy as np
 
 from lsst.ts import salobj
 from lsst.ts import salkafka
+from lsst.ts import utils
 
 np.random.seed(47)
 
@@ -39,22 +40,19 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
         https://stackoverflow.com/a/11180583
         """
         salobj.set_random_lsst_dds_partition_prefix()
-        with salkafka.mocks.insert_all_mocks():
+        with salkafka.mocks.insert_all_mocks(), utils.modify_environ(LSST_SITE="test"):
             super().run(result)
 
     @contextlib.asynccontextmanager
-    async def make_producer(self, topic_name, sal_prefix):
+    async def make_producer(self, attr_name):
         """Make a CSC and topic producer for a specified topic of the
         Test SAL component.
 
         Parameters
         ----------
-        topic_name : `str`
-            Topic name, without any prefix.
-            For example specify summaryState for logevent_summaryState.
-        sal_prefix : `str`
-            SAL prefix for the topic.
-            For example specify logevent_ for logevent_summaryState.
+        attr_name : `str`
+            Topic name with attribute prefix. The prefix must be one of:
+            ``cmd_``, ``evt_``, ``tel_``, or (for the ackcmd topic) ``ack_``.
 
         Attributes
         ----------
@@ -95,8 +93,7 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
         try:
             read_topic = salobj.topics.ReadTopic(
                 salinfo=read_salinfo,
-                name=topic_name,
-                sal_prefix=sal_prefix,
+                attr_name=attr_name,
                 max_history=0,
                 filter_ackcmd=False,
             )
@@ -121,10 +118,10 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
             await self.csc.close()
 
     async def test_basics(self):
-        async with self.make_producer(topic_name="arrays", sal_prefix="logevent_"):
+        async with self.make_producer(attr_name="evt_arrays"):
             for isample in range(3):
-                evt_array_data = self.csc.make_random_evt_arrays()
-                self.csc.evt_arrays.put(evt_array_data)
+                arrays_dict = self.csc.make_random_arrays_dict()
+                await self.csc.evt_arrays.set_write(**arrays_dict)
                 for iread in range(10):
                     if len(self.topic_producer.kafka_producer.sent_data) > isample:
                         break
@@ -139,9 +136,9 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
                 ) = self.topic_producer.kafka_producer.sent_data[-1]
                 assert kafka_topic_name == "lsst.sal.Test.logevent_arrays"
                 assert isinstance(serialized_value, bytes)
-                for key, value in evt_array_data.get_vars().items():
+                for key, value in arrays_dict.items():
                     if key == "private_rcvStamp":
-                        # not set in evt_array_data but set in received
+                        # not set in arrays_dict but set in received
                         # sample and thus in ``sent_value``
                         continue
                     if isinstance(value, np.ndarray):
@@ -154,10 +151,9 @@ class TopicProducerTestCase(unittest.IsolatedAsyncioTestCase):
 
         This exercises DM-25707
         """
-        async with self.make_producer(topic_name="ackcmd", sal_prefix=""):
+        async with self.make_producer(attr_name="ack_ackcmd"):
             for isample in range(3):
-                self.csc.salinfo._ackcmd_writer.set(private_seqNum=isample)
-                self.csc.salinfo._ackcmd_writer.put()
+                await self.csc.salinfo._ackcmd_writer.set_write(private_seqNum=isample)
                 for iread in range(10):
                     if len(self.topic_producer.kafka_producer.sent_data) > isample:
                         break
