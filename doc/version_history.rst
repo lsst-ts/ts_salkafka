@@ -6,6 +6,13 @@
 Version History
 ###############
 
+v1.10.0
+-------
+
+* Add support for standard Avro schema evolution by specifying a default value for each field.
+  This adds automatic schema evolution support for adding and removing fields, but does not support changing the type of an existing field.
+  Use a default value of 0 for float fields and float array items, because that matches the default for Kafka and DDS.
+
 v1.9.0
 ------
 
