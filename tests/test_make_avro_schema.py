@@ -102,12 +102,36 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
             for schema_item in schema["fields"]:
                 with self.subTest(schema_item=schema_item):
                     field_name = schema_item["name"]
+                    if field_name in ("private_efdStamp", "private_kafkaStamp"):
+                        # These two fields are not part of the DDS topic
+                        desired_default = 0
+                    else:
+                        desired_default = getattr(topic_sample, field_name)
                     if is_array and field_name.endswith("0"):
                         desired_item_type = desired_field_name_type[field_name]
                         desired_type = dict(type="array", items=desired_item_type)
+                        if desired_item_type in ("long", "double"):
+                            assert desired_default == [0] * len(desired_default)
+                        elif desired_item_type == "boolean":
+                            assert desired_default == [False] * len(desired_default)
+                        else:
+                            self.fail(
+                                f"Unknown Kafka array element type {desired_item_type!r}"
+                            )
                     else:
                         desired_type = desired_field_name_type[field_name]
+                        if desired_type in ("long", "double"):
+                            assert desired_default == 0
+                        elif desired_type == "boolean":
+                            assert desired_default is False
+                        elif desired_type == "string":
+                            assert desired_default == ""
+                        else:
+                            self.fail(
+                                f"Unknown Kafka scalar field type {desired_type!r}"
+                            )
                     assert schema_item["type"] == desired_type
+                    assert schema_item["default"] == desired_default
                     if field_name == "private_efdStamp":
                         assert schema_item["units"] == "second"
                         assert schema_item["description"].startswith("UTC time for EFD")
