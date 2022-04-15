@@ -72,12 +72,14 @@ def make_avro_schema(topic):
             "An integer (the number of leap seconds) "
             "different from private_sndStamp.",
             units="second",
+            default=0,
         ),
         dict(
             name="private_kafkaStamp",
             type="double",
             description="TAI time at which the Kafka message was created.",
             units="second",
+            default=0,
         ),
     ]
     for field_name, field_data in data_dict.items():
@@ -92,10 +94,12 @@ def make_avro_schema(topic):
             avro_field_type = dict(type="array", items=avro_item_type)
         else:
             # Field is a scalar.
-            avro_field_type = _SCALAR_TYPE_DICT[type(field_data)]
+            python_type = type(field_data)
+            avro_field_type = _SCALAR_TYPE_DICT[python_type]
         field_entry = dict(
             name=field_name,
             type=avro_field_type,
+            default=field_data,
         )
 
         # Add description and units metadata, if available.
