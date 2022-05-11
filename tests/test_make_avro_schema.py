@@ -64,7 +64,7 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                 "private_efdStamp": "double",
                 "private_kafkaStamp": "double",
                 # standard fields not in the XML
-                "TestID": "long",
+                "salIndex": "long",
                 "private_revCode": "string",
                 "private_sndStamp": "double",
                 "private_rcvStamp": "double",
@@ -137,7 +137,7 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                             schema_item["description"]
                             == "TAI time at which the Kafka message was created."
                         )
-                    elif field_name == "TestID":
+                    elif field_name == "salIndex":
                         # SAL 4.0 provides no metadata for this topic
                         # but SAL 4.1 may.
                         pass
