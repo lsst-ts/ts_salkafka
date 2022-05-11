@@ -72,8 +72,6 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                 "private_origin": "long",
                 "private_identity": "string",
                 "private_revCode": "string",
-                # This standard field is only present for events.
-                "priority": "long",
                 # fields in the XML
                 "boolean0": "boolean",
                 "byte0": "long",
@@ -89,8 +87,6 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                 "float0": "double",
                 "double0": "double",
                 "string0": "string",
-                # another standard field not in the XML
-                "priority": "long",
             }
             if hasattr(topic_sample, "private_host"):
                 # Deprecated, should be gone in ts_sal 6
