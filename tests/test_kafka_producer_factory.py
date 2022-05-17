@@ -88,14 +88,14 @@ class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
             avro_schema = {
                 "name": topic_name,
                 "type": "record",
-                "fields": [{"name": "TestID", "type": "long"}],
+                "fields": [{"name": "salIndex", "type": "long"}],
             }
             producer = await kafka_factory.make_producer(avro_schema=avro_schema)
             assert producer.bootstrap_servers == config.broker_url
             assert producer.sent_data == []
             expected_name_value_list = []
             for i in range(10):
-                value = {"TestID": i}
+                value = {"salIndex": i}
                 expected_name_value_list.append((topic_name, value))
                 await producer.send_and_wait(topic_name, value=value)
             sent_name_value_list = [item[0:2] for item in producer.sent_data]

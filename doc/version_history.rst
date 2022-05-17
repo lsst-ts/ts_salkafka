@@ -9,9 +9,16 @@ Version History
 v1.10.0
 -------
 
+* Update for ts_sal 6.2, which is required:
+
+  * Remove all references to the "priority" field (RFC-848).
+  * Rename "{component_name}ID" fields to "salIndex" (RFC-849).
+
 * Add support for standard Avro schema evolution by specifying a default value for each field.
   This adds automatic schema evolution support for adding and removing fields, but does not support changing the type of an existing field.
   Use a default value of 0 for float fields and float array items, because that matches the default for Kafka and DDS.
+* ``setup.cfg``: specify asyncio_mode=auto.
+* git ignore ``.hypothesis``.
 
 v1.9.0
 ------
