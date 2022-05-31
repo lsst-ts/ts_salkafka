@@ -20,7 +20,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["ComponentProducerSet"]
+__all__ = ["ComponentProducerSet", "run_salkafka_producer"]
 
 import argparse
 import asyncio
@@ -666,3 +666,8 @@ class ComponentProducerSet:
                 self.log.warning(
                     f"Partial producer {index} reported as started more than once"
                 )
+
+
+def run_salkafka_producer():
+    """Run a SAL/Kafka producer from the command line."""
+    asyncio.run(ComponentProducerSet.amain())
