@@ -8,3 +8,6 @@ pytest_session.txt
 __pycache__
 tests/.tests
 python/lsst/ts/salkafka/version.py
+
+# Editors
+.vscode
