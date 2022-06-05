@@ -83,7 +83,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_cmdline_validate_good(self):
         good_path = self.data_dir / "good_two_sets.yaml"
         proc = await asyncio.create_subprocess_exec(
-            "run_salkafka_producer.py",
+            "run_salkafka_producer",
             "--file",
             str(good_path),
             "--validate",
@@ -105,7 +105,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
         ):
             bad_path = self.data_dir / bad_name
             proc = await asyncio.create_subprocess_exec(
-                "run_salkafka_producer.py",
+                "run_salkafka_producer",
                 "--file",
                 str(bad_path),
                 "--validate",
@@ -117,7 +117,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
 
         # Missing --file
         proc = await asyncio.create_subprocess_exec(
-            "run_salkafka_producer.py",
+            "run_salkafka_producer",
             "--validate",
             stdout=subprocess.PIPE,  # Swallow the error message
             stderr=subprocess.PIPE,
@@ -127,7 +127,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def test_cmdline_show_schema(self):
         proc = await asyncio.create_subprocess_exec(
-            "run_salkafka_producer.py",
+            "run_salkafka_producer",
             "--show-schema",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -182,7 +182,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
 
         print("bad_kafka_arg_list =", bad_kafka_arg_list)
         proc = await asyncio.create_subprocess_exec(
-            "run_salkafka_producer.py",
+            "run_salkafka_producer",
             "Test",
             "Script",
             *bad_kafka_arg_list,
@@ -191,7 +191,7 @@ class ComponentProducerSetTestCase(unittest.IsolatedAsyncioTestCase):
         assert proc.returncode != 0
 
         proc = await asyncio.create_subprocess_exec(
-            "run_salkafka_producer.py",
+            "run_salkafka_producer",
             "--file",
             str(good_path),
             *bad_kafka_arg_list,

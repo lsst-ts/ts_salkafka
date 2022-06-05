@@ -2,7 +2,7 @@
 ts_salkafka
 ###########
 
-Forward samples from SAL/DDS to Kafka to populate engineering facilities databases.
+Forward samples from SAL/DDS to Kafka to populate the engineering facilities database at Vera C. Rubin Telescope.
 
 Documentation: https://ts-salkafka.lsst.io
 
