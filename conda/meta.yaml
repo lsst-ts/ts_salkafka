@@ -7,6 +7,7 @@ source:
   path: ../
 
 build:
+  noarch: generic
   script: python -m pip install --no-deps --ignore-installed .
   entry_points:
     - run_salkafka_producer = lsst.ts.salkafka:run_salkafka_producer
