@@ -1,2 +1,2 @@
 @Library('JenkinsShared')_
-CondaPipeline([], "ts-salkafka", "lsst.ts.salkafka")
+CondaPipeline([], "ts-salkafka", "lsst.ts.salkafka", "noarch")
