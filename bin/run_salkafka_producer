@@ -20,8 +20,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import asyncio
+from lsst.ts.salkafka import run_salkafka_producer
 
-from lsst.ts import salkafka
 
-asyncio.run(salkafka.ComponentProducerSet.amain())
+run_salkafka_producer()

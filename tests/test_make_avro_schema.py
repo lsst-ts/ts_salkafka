@@ -64,7 +64,7 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                 "private_efdStamp": "double",
                 "private_kafkaStamp": "double",
                 # standard fields not in the XML
-                "TestID": "long",
+                "salIndex": "long",
                 "private_revCode": "string",
                 "private_sndStamp": "double",
                 "private_rcvStamp": "double",
@@ -72,8 +72,6 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                 "private_origin": "long",
                 "private_identity": "string",
                 "private_revCode": "string",
-                # This standard field is only present for events.
-                "priority": "long",
                 # fields in the XML
                 "boolean0": "boolean",
                 "byte0": "long",
@@ -89,8 +87,6 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                 "float0": "double",
                 "double0": "double",
                 "string0": "string",
-                # another standard field not in the XML
-                "priority": "long",
             }
             if hasattr(topic_sample, "private_host"):
                 # Deprecated, should be gone in ts_sal 6
@@ -102,12 +98,36 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
             for schema_item in schema["fields"]:
                 with self.subTest(schema_item=schema_item):
                     field_name = schema_item["name"]
+                    if field_name in ("private_efdStamp", "private_kafkaStamp"):
+                        # These two fields are not part of the DDS topic
+                        desired_default = 0
+                    else:
+                        desired_default = getattr(topic_sample, field_name)
                     if is_array and field_name.endswith("0"):
                         desired_item_type = desired_field_name_type[field_name]
                         desired_type = dict(type="array", items=desired_item_type)
+                        if desired_item_type in ("long", "double"):
+                            assert desired_default == [0] * len(desired_default)
+                        elif desired_item_type == "boolean":
+                            assert desired_default == [False] * len(desired_default)
+                        else:
+                            self.fail(
+                                f"Unknown Kafka array element type {desired_item_type!r}"
+                            )
                     else:
                         desired_type = desired_field_name_type[field_name]
+                        if desired_type in ("long", "double"):
+                            assert desired_default == 0
+                        elif desired_type == "boolean":
+                            assert desired_default is False
+                        elif desired_type == "string":
+                            assert desired_default == ""
+                        else:
+                            self.fail(
+                                f"Unknown Kafka scalar field type {desired_type!r}"
+                            )
                     assert schema_item["type"] == desired_type
+                    assert schema_item["default"] == desired_default
                     if field_name == "private_efdStamp":
                         assert schema_item["units"] == "second"
                         assert schema_item["description"].startswith("UTC time for EFD")
@@ -117,7 +137,7 @@ class MakeAvroSchemaTestCase(unittest.IsolatedAsyncioTestCase):
                             schema_item["description"]
                             == "TAI time at which the Kafka message was created."
                         )
-                    elif field_name == "TestID":
+                    elif field_name == "salIndex":
                         # SAL 4.0 provides no metadata for this topic
                         # but SAL 4.1 may.
                         pass
