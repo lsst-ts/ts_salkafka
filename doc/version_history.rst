@@ -6,6 +6,11 @@
 Version History
 ###############
 
+v1.10.1
+-------
+
+* Remove "test" section from "conda/meta.yaml" again because it depends on non-conda dependencies.
+
 v1.10.0
 -------
 
