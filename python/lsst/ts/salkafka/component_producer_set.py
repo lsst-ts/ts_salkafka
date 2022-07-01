@@ -211,6 +211,8 @@ class ComponentProducerSet:
             args.wait_for_ack = int(args.wait_for_ack)
         kafka_config = KafkaConfiguration(
             broker_url=args.broker_url,
+            sasl_plain_username=args.username,
+            sasl_plain_password=args.password,
             registry_url=args.registry_url,
             partitions=args.partitions,
             replication_factor=args.replication_factor,
@@ -314,6 +316,18 @@ class ComponentProducerSet:
             help="Kafka broker URL, without the transport. "
             "Example 'my.kafka:9000'. "
             "Required unless --validate or --show-schema are specified.",
+        )
+        parser.add_argument(
+            "--username",
+            default=None,
+            dest="username",
+            help="Kafka username for SASL authentication.",
+        )
+        parser.add_argument(
+            "--password",
+            default=None,
+            dest="password",
+            help="Kafka password for SASL authentication.",
         )
         parser.add_argument(
             "--registry",

@@ -33,6 +33,9 @@ from confluent_kafka.admin import AdminClient, NewTopic
 from kafkit.registry.aiohttp import RegistryApi
 from kafkit.registry import Serializer
 
+SECURITY_PROTOCOL = "SASL_PLAINTEXT"
+SASL_MECHANISM = "SCRAM-SHA-512"
+
 
 @dataclasses.dataclass
 class KafkaConfiguration:
@@ -56,6 +59,12 @@ class KafkaConfiguration:
         * 0: do not wait (unsafe)
         * 1: wait for first kafka broker to respond (recommended)
         * "all": wait for all kafka brokers to respond
+    sasl_plain_username : `str`
+        username for SASL authentication.
+        Default: None
+    sasl_plain_password : `str`
+        password for SASL authentication.
+        Default: None
     """
 
     broker_url: str
@@ -63,6 +72,8 @@ class KafkaConfiguration:
     partitions: int
     replication_factor: int
     wait_for_ack: typing.Union[int, str]
+    sasl_plain_username: str = None
+    sasl_plain_password: str = None
 
     def __post_init__(self):
         if self.wait_for_ack not in (0, 1, "all"):
@@ -89,7 +100,20 @@ class KafkaProducerFactory:
         self.http_session = None  # created by `start`
         self.schema_registry = None
         self.log.info("Making Kafka client session")
-        self.broker_client = AdminClient({"bootstrap.servers": self.config.broker_url})
+        if self.config.sasl_plain_username and self.config.sasl_plain_password:
+            self.broker_client = AdminClient(
+                {
+                    "bootstrap.servers": self.config.broker_url,
+                    "security.protocol": SECURITY_PROTOCOL,
+                    "sasl.mechanisms": SASL_MECHANISM,
+                    "sasl.username": self.config.sasl_plain_username,
+                    "sasl.password": self.config.sasl_plain_password,
+                }
+            )
+        else:
+            self.broker_client = AdminClient(
+                {"bootstrap.servers": self.config.broker_url}
+            )
         self.start_task = asyncio.ensure_future(self.start())
 
     async def start(self):
@@ -160,12 +184,24 @@ class KafkaProducerFactory:
             schema=avro_schema,
             subject=f"{avro_schema['name']}-value",
         )
-        producer = AIOKafkaProducer(
-            loop=asyncio.get_running_loop(),
-            bootstrap_servers=self.config.broker_url,
-            acks=self.config.wait_for_ack,
-            value_serializer=serializer,
-        )
+        if self.config.sasl_plain_username and self.config.sasl_plain_password:
+            producer = AIOKafkaProducer(
+                loop=asyncio.get_running_loop(),
+                bootstrap_servers=self.config.broker_url,
+                acks=self.config.wait_for_ack,
+                value_serializer=serializer,
+                security_protocol=SECURITY_PROTOCOL,
+                sasl_mechanism=SASL_MECHANISM,
+                sasl_plain_username=self.config.sasl_plain_username,
+                sasl_plain_password=self.config.sasl_plain_password,
+            )
+        else:
+            producer = AIOKafkaProducer(
+                loop=asyncio.get_running_loop(),
+                bootstrap_servers=self.config.broker_url,
+                acks=self.config.wait_for_ack,
+                value_serializer=serializer,
+            )
         await producer.start()
         return producer
 
