@@ -209,6 +209,10 @@ class ComponentProducerSet:
             parser.error(f"--partitions={args.partitions} must be positive")
         if args.wait_for_ack != "all":
             args.wait_for_ack = int(args.wait_for_ack)
+        if args.username and args.password is None:
+            parser.error("You must specify --password if you specify --username.")
+        if args.password and args.username is None:
+            parser.error("You must specify --username if you specify --password.")
         kafka_config = KafkaConfiguration(
             broker_url=args.broker_url,
             sasl_plain_username=args.username,
@@ -321,13 +325,15 @@ class ComponentProducerSet:
             "--username",
             default=None,
             dest="username",
-            help="Kafka username for SASL authentication.",
+            help="Kafka username for SASL authentication. "
+            "Required if --password is specified.",
         )
         parser.add_argument(
             "--password",
             default=None,
             dest="password",
-            help="Kafka password for SASL authentication.",
+            help="Kafka password for SASL authentication. "
+            "Required if --username is specified.",
         )
         parser.add_argument(
             "--registry",

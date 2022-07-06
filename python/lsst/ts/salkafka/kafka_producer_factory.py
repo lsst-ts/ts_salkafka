@@ -110,10 +110,19 @@ class KafkaProducerFactory:
                     "sasl.password": self.config.sasl_plain_password,
                 }
             )
-        else:
+        elif (
+            self.config.sasl_plain_username is None
+            and self.config.sasl_plain_password is None
+        ):
             self.broker_client = AdminClient(
                 {"bootstrap.servers": self.config.broker_url}
             )
+        else:
+            raise ValueError(
+                "Both or neither of 'self.config.sasl_plain_username' "
+                "and 'self.config.sasl_plain_password' must be set."
+            )
+
         self.start_task = asyncio.ensure_future(self.start())
 
     async def start(self):
@@ -195,13 +204,22 @@ class KafkaProducerFactory:
                 sasl_plain_username=self.config.sasl_plain_username,
                 sasl_plain_password=self.config.sasl_plain_password,
             )
-        else:
+        elif (
+            self.config.sasl_plain_username is None
+            and self.config.sasl_plain_password is None
+        ):
             producer = AIOKafkaProducer(
                 loop=asyncio.get_running_loop(),
                 bootstrap_servers=self.config.broker_url,
                 acks=self.config.wait_for_ack,
                 value_serializer=serializer,
             )
+        else:
+            raise ValueError(
+                "Both or neither of 'self.config.sasl_plain_username' "
+                "and 'self.config.sasl_plain_password' must be set."
+            )
+
         await producer.start()
         return producer
 
