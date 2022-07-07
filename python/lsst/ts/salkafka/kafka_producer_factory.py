@@ -33,6 +33,9 @@ from confluent_kafka.admin import AdminClient, NewTopic
 from kafkit.registry.aiohttp import RegistryApi
 from kafkit.registry import Serializer
 
+SECURITY_PROTOCOL = "SASL_PLAINTEXT"
+SASL_MECHANISM = "SCRAM-SHA-512"
+
 
 @dataclasses.dataclass
 class KafkaConfiguration:
@@ -56,6 +59,14 @@ class KafkaConfiguration:
         * 0: do not wait (unsafe)
         * 1: wait for first kafka broker to respond (recommended)
         * "all": wait for all kafka brokers to respond
+    sasl_plain_username : `None` | `str`
+        username for SASL authentication.
+        If specified then you must also specify sasl_plain_password.
+        Default: None
+    sasl_plain_password : `str`
+        password for SASL authentication.
+        If specified then you must also specify sasl_plain_username.
+        Default: None
     """
 
     broker_url: str
@@ -63,11 +74,18 @@ class KafkaConfiguration:
     partitions: int
     replication_factor: int
     wait_for_ack: typing.Union[int, str]
+    sasl_plain_username: None | str = None
+    sasl_plain_password: None | str = None
 
     def __post_init__(self):
         if self.wait_for_ack not in (0, 1, "all"):
             raise ValueError(
                 f"wait_for_ack={self.wait_for_ack!r} must be one of 0, 1, 'all'"
+            )
+        if (self.sasl_plain_username is None) != (self.sasl_plain_password is None):
+            raise ValueError(
+                "Both or neither of 'config.sasl_plain_username' "
+                "and 'config.sasl_plain_password' must be specified."
             )
 
 
@@ -89,7 +107,29 @@ class KafkaProducerFactory:
         self.http_session = None  # created by `start`
         self.schema_registry = None
         self.log.info("Making Kafka client session")
-        self.broker_client = AdminClient({"bootstrap.servers": self.config.broker_url})
+        if self.config.sasl_plain_username and self.config.sasl_plain_password:
+            self.broker_client = AdminClient(
+                {
+                    "bootstrap.servers": self.config.broker_url,
+                    "security.protocol": SECURITY_PROTOCOL,
+                    "sasl.mechanisms": SASL_MECHANISM,
+                    "sasl.username": self.config.sasl_plain_username,
+                    "sasl.password": self.config.sasl_plain_password,
+                }
+            )
+        elif (
+            self.config.sasl_plain_username is None
+            and self.config.sasl_plain_password is None
+        ):
+            self.broker_client = AdminClient(
+                {"bootstrap.servers": self.config.broker_url}
+            )
+        else:
+            raise ValueError(
+                "Both or neither of 'self.config.sasl_plain_username' "
+                "and 'self.config.sasl_plain_password' must be set."
+            )
+
         self.start_task = asyncio.ensure_future(self.start())
 
     async def start(self):
@@ -160,12 +200,33 @@ class KafkaProducerFactory:
             schema=avro_schema,
             subject=f"{avro_schema['name']}-value",
         )
-        producer = AIOKafkaProducer(
-            loop=asyncio.get_running_loop(),
-            bootstrap_servers=self.config.broker_url,
-            acks=self.config.wait_for_ack,
-            value_serializer=serializer,
-        )
+        if self.config.sasl_plain_username and self.config.sasl_plain_password:
+            producer = AIOKafkaProducer(
+                loop=asyncio.get_running_loop(),
+                bootstrap_servers=self.config.broker_url,
+                acks=self.config.wait_for_ack,
+                value_serializer=serializer,
+                security_protocol=SECURITY_PROTOCOL,
+                sasl_mechanism=SASL_MECHANISM,
+                sasl_plain_username=self.config.sasl_plain_username,
+                sasl_plain_password=self.config.sasl_plain_password,
+            )
+        elif (
+            self.config.sasl_plain_username is None
+            and self.config.sasl_plain_password is None
+        ):
+            producer = AIOKafkaProducer(
+                loop=asyncio.get_running_loop(),
+                bootstrap_servers=self.config.broker_url,
+                acks=self.config.wait_for_ack,
+                value_serializer=serializer,
+            )
+        else:
+            raise ValueError(
+                "Both or neither of 'self.config.sasl_plain_username' "
+                "and 'self.config.sasl_plain_password' must be set."
+            )
+
         await producer.start()
         return producer
 
