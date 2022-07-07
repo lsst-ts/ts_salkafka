@@ -59,11 +59,13 @@ class KafkaConfiguration:
         * 0: do not wait (unsafe)
         * 1: wait for first kafka broker to respond (recommended)
         * "all": wait for all kafka brokers to respond
-    sasl_plain_username : `str`
+    sasl_plain_username : `None` | `str`
         username for SASL authentication.
+        If specified then you must also specify sasl_plain_password.
         Default: None
     sasl_plain_password : `str`
         password for SASL authentication.
+        If specified then you must also specify sasl_plain_username.
         Default: None
     """
 
@@ -72,13 +74,18 @@ class KafkaConfiguration:
     partitions: int
     replication_factor: int
     wait_for_ack: typing.Union[int, str]
-    sasl_plain_username: str = None
-    sasl_plain_password: str = None
+    sasl_plain_username: None | str = None
+    sasl_plain_password: None | str = None
 
     def __post_init__(self):
         if self.wait_for_ack not in (0, 1, "all"):
             raise ValueError(
                 f"wait_for_ack={self.wait_for_ack!r} must be one of 0, 1, 'all'"
+            )
+        if (self.sasl_plain_username is None) != (self.sasl_plain_password is None):
+            raise ValueError(
+                "Both or neither of 'config.sasl_plain_username' "
+                "and 'config.sasl_plain_password' must be specified."
             )
 
 

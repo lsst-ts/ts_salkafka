@@ -47,18 +47,34 @@ class KafkaProducerFactoryTestCase(unittest.IsolatedAsyncioTestCase):
             super().run(result)
 
     async def test_kafka_configuration(self):
-        kafka_config = salkafka.KafkaConfiguration(**self.config_kwargs)
-        for name, value in self.config_kwargs.items():
-            assert getattr(kafka_config, name) == value
+        optional_kwargs = dict(
+            sasl_plain_username="a username", sasl_plain_password="a password"
+        )
+        for specify_optional_kwargs in (False, True):
+            good_config_kwargs = self.config_kwargs.copy()
+            if specify_optional_kwargs:
+                good_config_kwargs.update(optional_kwargs)
 
-        for name, bad_value in (
-            ("wait_for_ack", 2),
-            ("wait_for_ack", -1),
-            ("wait_for_ack", None),
-            ("wait_for_ack", "some"),
+            kafka_config = salkafka.KafkaConfiguration(**good_config_kwargs)
+            for name, value in vars(kafka_config).items():
+                if not specify_optional_kwargs and name in optional_kwargs:
+                    # All existing default arguments default to None
+                    assert value is None
+                else:
+                    assert value == good_config_kwargs[name]
+
+        for bad_args in (
+            # Invalid wait_for_ack values
+            dict(wait_for_ack=2),
+            dict(wait_for_ack=-1),
+            dict(wait_for_ack=None),
+            dict(wait_for_ack="some"),
+            # If username is specified then you must also specify password
+            dict(sasl_plain_username="a username"),
+            dict(sasl_plain_password="a password"),
         ):
             bad_config_kwargs = self.config_kwargs.copy()
-            bad_config_kwargs[name] = bad_value
+            bad_config_kwargs.update(bad_args)
             with pytest.raises(ValueError):
                 salkafka.KafkaConfiguration(**bad_config_kwargs)
 
