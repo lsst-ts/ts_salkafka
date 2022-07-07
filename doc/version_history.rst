@@ -6,6 +6,13 @@
 Version History
 ###############
 
+v1.11.0
+-------
+
+* Add support for SASL authentication using SASL_PLAINTEXT protocol and SCRAM-SHA-512 method.
+  This adds the ``--username`` and ``--password`` CLI options that can be used to
+  connect the secured Kafka broker.
+
 v1.10.1
 -------
 
