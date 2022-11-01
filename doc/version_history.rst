@@ -6,6 +6,12 @@
 Version History
 ###############
 
+v1.11.1
+-------
+
+* `make_avro_schema`: change default value of private_sndStamp and private_rcvStamp from 0 to 0.0.
+* ``doc/index.rst``: update the MTM1M3 example configuration for ts_xml 13.
+
 v1.11.0
 -------
 
