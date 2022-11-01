@@ -52,35 +52,34 @@ where MTM1M3.yaml contains::
     component: MTM1M3
     queue_len: 1000
     topic_sets:
-      - events:
-          - appliedCylinderForces
-        partitions: 5
-      - events:
-          - hardpointActuatorWarning
-        partitions: 2
-      - events:
-          - hardpointMonitorWarning
-      - telemetry:
-          - forceActuatorData
-      - telemetry:
-          - inclinometerData
-      - telemetry:
-          - outerLoopData
-      - telemetry:
-          - accelerometerData
-      - telemetry:
-          - hardpointActuatorData
-      - telemetry:
-          - imsData
-      - telemetry:
-          - gyroData
-      - telemetry:
-          - powerSupplyData
-      - telemetry:
-          - pidData
-      - telemetry:
-          - hardpointMonitorData
-        partitions: 10
+    - events:
+        - logMessage
+    - events:
+        - hardpointActuatorWarning
+    - events:
+        - hardpointMonitorWarning
+    - telemetry:
+        - appliedCylinderForces
+    - telemetry:
+        - forceActuatorData
+    - telemetry:
+        - inclinometerData
+    - telemetry:
+        - outerLoopData
+    - telemetry:
+        - accelerometerData
+    - telemetry:
+        - hardpointActuatorData
+    - telemetry:
+        - imsData
+    - telemetry:
+        - gyroData
+    - telemetry:
+        - powerSupplyData
+    - telemetry:
+        - pidData
+    - telemetry:
+        - hardpointMonitorData
 
 You will be able to tell if you ask a producer to do too much,
 because you will see log messages about falling behind,
