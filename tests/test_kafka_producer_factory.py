@@ -23,7 +23,6 @@ import logging
 import unittest
 
 import pytest
-
 from lsst.ts import salkafka
 
 

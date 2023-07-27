@@ -23,14 +23,12 @@ from __future__ import annotations
 
 __all__ = ["TopicNames", "TopicNamesSet"]
 
-import dataclasses
 import collections.abc
-import yaml
+import dataclasses
 
 import jsonschema
-
-from lsst.ts import idl
-from lsst.ts import salobj
+import yaml
+from lsst.ts import idl, salobj
 
 TOPIC_CATEGORIES = ("commands", "events", "telemetry")
 

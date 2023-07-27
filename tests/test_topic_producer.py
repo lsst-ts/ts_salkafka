@@ -25,10 +25,7 @@ import logging
 import unittest
 
 import numpy as np
-
-from lsst.ts import salobj
-from lsst.ts import salkafka
-from lsst.ts import utils
+from lsst.ts import salkafka, salobj, utils
 
 np.random.seed(47)
 
