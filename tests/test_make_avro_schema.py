@@ -22,10 +22,7 @@
 import unittest
 
 import numpy as np
-
-from lsst.ts import salkafka
-from lsst.ts import salobj
-from lsst.ts import utils
+from lsst.ts import salkafka, salobj, utils
 
 index_gen = utils.index_generator()
 

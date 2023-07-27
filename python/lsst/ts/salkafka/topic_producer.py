@@ -24,6 +24,7 @@ __all__ = ["TopicProducer"]
 import asyncio
 
 from lsst.ts import utils
+
 from .make_avro_schema import make_avro_schema
 
 

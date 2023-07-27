@@ -24,10 +24,7 @@ import unittest
 
 import jsonschema
 import pytest
-
-from lsst.ts import idl
-from lsst.ts import salobj
-from lsst.ts import salkafka
+from lsst.ts import idl, salkafka, salobj
 
 
 class TopicNamesSetTestCase(unittest.TestCase):

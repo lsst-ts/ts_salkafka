@@ -6,6 +6,16 @@
 Version History
 ###############
 
+v1.11.2
+-------
+
+* Update conda recipe.
+* Update Jenkinsfile to use shared library.
+* Run isort and black.
+* Update package configuration to use ts-pre-commit-conf.
+* Remove usage of flake8 plugins.
+* Remove SConstruct file.
+
 v1.11.1
 -------
 

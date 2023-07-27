@@ -22,5 +22,4 @@
 
 from lsst.ts.salkafka import run_salkafka_producer
 
-
 run_salkafka_producer()

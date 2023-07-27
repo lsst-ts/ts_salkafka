@@ -20,16 +20,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
-import subprocess
 import pathlib
+import subprocess
 import unittest
 
 import numpy as np
 import pytest
-
-from lsst.ts import salobj
-from lsst.ts import utils
-from lsst.ts import salkafka
+from lsst.ts import salkafka, salobj, utils
 
 np.random.seed(47)
 
