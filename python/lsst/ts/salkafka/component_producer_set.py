@@ -31,17 +31,17 @@ import logging
 import multiprocessing
 import os
 import pathlib
-import psutil
 import queue
 import signal
 import sys
 import traceback
 
-from lsst.ts import salobj
-from lsst.ts import utils
-from .topic_names_set import TopicNamesSet
+import psutil
+from lsst.ts import salobj, utils
+
 from .component_producer import ComponentProducer
 from .kafka_producer_factory import KafkaConfiguration, KafkaProducerFactory
+from .topic_names_set import TopicNamesSet
 
 # Time limit to wait for subprocesses to be terminated (seconds)
 SIGTERM_TIMEOUT = 5

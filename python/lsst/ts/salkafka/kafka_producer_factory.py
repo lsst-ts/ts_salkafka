@@ -30,8 +30,8 @@ import aiohttp
 # use `from x import y` to support replacing these classes with mocks
 from aiokafka import AIOKafkaProducer
 from confluent_kafka.admin import AdminClient, NewTopic
-from kafkit.registry.aiohttp import RegistryApi
 from kafkit.registry import Serializer
+from kafkit.registry.aiohttp import RegistryApi
 
 SECURITY_PROTOCOL = "SASL_PLAINTEXT"
 SASL_MECHANISM = "SCRAM-SHA-512"

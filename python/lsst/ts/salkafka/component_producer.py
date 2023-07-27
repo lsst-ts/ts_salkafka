@@ -24,6 +24,7 @@ __all__ = ["check_names", "ComponentProducer"]
 import asyncio
 
 from lsst.ts import salobj
+
 from .topic_producer import TopicProducer
 
 # dict of attr prefix: SAL prefix
@@ -150,7 +151,6 @@ class ComponentProducer:
 
         self.log.info(f"Creating SAL/Kafka topic producers for {self.salinfo.name}.")
         try:
-
             for topic_name, attr_prefix in topic_name_prefixes:
                 self._make_topic(
                     attr_name=attr_prefix + topic_name, queue_len=queue_len
